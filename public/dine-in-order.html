@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dine In Order | Bezawada Biryani House</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Manrope:wght@400;500;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/styles.css" />
+</head>
+<body>
+  <header class="site-header">
+    <nav class="nav">
+      <a class="logo" href="admin.html"><img src="assets/bezawada-biryani-house-logo.svg" alt="Bezawada Biryani House" /></a>
+      <div class="nav-links">
+        <a href="admin.html">Home</a>
+        <a href="dine-in.html">Dine In</a>
+        <button class="btn btn-outline btn-sm" id="logoutBtn" type="button">Logout</button>
+      </div>
+    </nav>
+  </header>
+
+  <main class="admin-layout" id="dineInOrderPage">
+    <section class="card">
+      <div class="section-head section-with-back">
+        <h1 id="dineInOrderTitle">Dine In Order</h1>
+        <div class="head-actions">
+          <button class="btn btn-outline btn-sm" type="button" id="dineInOrderCreateBtn">Create Order</button>
+          <button class="btn btn-outline btn-sm" type="button" id="dineInOrderGoAddItemsBtn">Add More Items</button>
+          <button class="btn btn-sm" type="submit" form="dineInOrderStateForm" id="dineInOrderUpdateBtn">Update</button>
+          <a class="btn btn-outline btn-sm" id="dineInOrderCloseBtn" href="dine-in.html">Close</a>
+        </div>
+      </div>
+
+      <p class="small" id="dineInOrderStatusMessage"></p>
+      <form id="dineInOrderStateForm" class="order-quick-bar">
+        <label>
+          Customer Name
+          <input type="text" id="dineInOrderCustomerName" placeholder="Optional" />
+        </label>
+        <label>
+          Phone
+          <input type="tel" id="dineInOrderCustomerPhone" placeholder="Optional" />
+        </label>
+        <label id="dineInOrderPaymentWrap">
+          Payment
+          <select id="dineInOrderPaymentStatus">
+            <option value="INITIATED">Initiated</option>
+            <option value="PAID">Paid</option>
+            <option value="FAILED">Failed</option>
+            <option value="REFUNDED">Refunded</option>
+          </select>
+        </label>
+        <label id="dineInOrderStatusWrap">
+          Status
+          <select id="dineInOrderStatus">
+            <option value="OPEN">Open</option>
+            <option value="PENDING">Pending</option>
+            <option value="CLOSED">Closed</option>
+          </select>
+        </label>
+      </form>
+
+      <div class="order-meta-grid" id="dineInOrderMeta"></div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th>SKU</th>
+              <th>Qty</th>
+              <th>Price</th>
+              <th>Line Total</th>
+            </tr>
+          </thead>
+          <tbody id="dineInOrderItemsBody"></tbody>
+        </table>
+      </div>
+
+      <div class="invoice-totals">
+        <div><span>Subtotal</span><strong id="dineInOrderSubtotal">₹0</strong></div>
+        <div><span>Delivery</span><strong id="dineInOrderDelivery">₹0</strong></div>
+        <div class="total"><span>Total</span><strong id="dineInOrderTotal">₹0</strong></div>
+      </div>
+    </section>
+  </main>
+
+  <script src="assets/app.js"></script>
+</body>
+</html>

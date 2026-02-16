@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Account Access | Bezawada Biryani House</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Manrope:wght@400;500;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/styles.css" />
+</head>
+<body>
+  <header class="site-header">
+    <nav class="nav">
+      <a class="logo" href="index.html"><img src="assets/bezawada-biryani-house-logo.svg" alt="Bezawada Biryani House" /></a>
+      <div class="nav-links">
+        <button class="btn btn-outline btn-sm" id="topLoginBtn" type="button">Login</button>
+        <button class="btn btn-sm" id="topSignupBtn" type="button">Signup</button>
+      </div>
+    </nav>
+  </header>
+
+  <main class="admin-layout">
+    <section class="card" id="authSection">
+      <h2>Account Access</h2>
+      <p>Choose customer or admin access below.</p>
+
+      <div class="pill-row">
+        <button class="pill active auth-tab" data-tab="customer-login" type="button">Customer Login</button>
+        <button class="pill auth-tab" data-tab="customer-signup" type="button">Customer Signup</button>
+        <button class="pill auth-tab" data-tab="admin-login" type="button">Admin Login</button>
+        <button class="pill auth-tab" data-tab="admin-register" type="button">Admin Register</button>
+      </div>
+
+      <form id="customerLoginForm" class="admin-form auth-panel">
+        <label>Email <input type="email" id="loginEmail" required /></label>
+        <label>Password <input type="password" id="loginPassword" required /></label>
+        <button class="btn" type="submit">Login</button>
+      </form>
+
+      <form id="customerSignupForm" class="admin-form auth-panel hidden">
+        <label>First Name <input type="text" id="signupFirstName" required /></label>
+        <label>Last Name <input type="text" id="signupLastName" required /></label>
+        <label>Email <input type="email" id="signupEmail" required /></label>
+        <label>Password <input type="password" id="signupPassword" required /></label>
+        <label>Phone <input type="tel" id="signupPhone" required /></label>
+        <label>Address <textarea id="signupAddress" required></textarea></label>
+        <button class="btn" type="submit">Signup</button>
+      </form>
+
+      <form id="adminLoginForm" class="admin-form auth-panel hidden">
+        <label>Email <input type="email" id="adminLoginEmail" required /></label>
+        <label>Password <input type="password" id="adminLoginPassword" required /></label>
+        <button class="btn" type="submit">Admin Login</button>
+      </form>
+
+      <form id="adminRegisterForm" class="admin-form auth-panel hidden">
+        <label>First Name <input type="text" id="adminRegFirstName" required /></label>
+        <label>Last Name <input type="text" id="adminRegLastName" required /></label>
+        <label>Email <input type="email" id="adminRegEmail" required /></label>
+        <label>Password <input type="password" id="adminRegPassword" required /></label>
+        <button class="btn" type="submit">Register Admin</button>
+      </form>
+
+      <form id="adminVerifyOtpForm" class="admin-form auth-panel hidden">
+        <label>Admin Email <input type="email" id="adminVerifyEmail" required /></label>
+        <label>OTP <input type="text" id="adminVerifyOtp" required /></label>
+        <button class="btn" type="submit">Verify Admin OTP</button>
+      </form>
+
+      <form id="forgotRequestForm" class="admin-form auth-panel">
+        <h3>Forgot Password</h3>
+        <label>Email <input type="email" id="forgotEmail" required /></label>
+        <button class="btn btn-outline" type="submit">Send OTP</button>
+      </form>
+
+      <form id="forgotConfirmForm" class="admin-form auth-panel">
+        <label>Email <input type="email" id="resetEmail" required /></label>
+        <label>OTP <input type="text" id="resetOtp" required /></label>
+        <label>New Password <input type="password" id="resetNewPassword" required /></label>
+        <button class="btn btn-outline" type="submit">Reset Password</button>
+      </form>
+
+      <p class="small" id="authMessage"></p>
+    </section>
+  </main>
+  <script src="assets/app.js"></script>
+</body>
+</html>

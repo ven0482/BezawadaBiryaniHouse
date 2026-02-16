@@ -1,0 +1,97 @@
+<svg width="2200" height="1300" viewBox="0 0 2200 1300" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">Authentic Bezawada Biryani close-up</title>
+  <desc id="desc">A rich, aromatic Bezawada style biryani in a modern serving bowl with warm steam and masala tones.</desc>
+
+  <defs>
+    <linearGradient id="bg" x1="174" y1="80" x2="2018" y2="1240" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2A140D"/>
+      <stop offset="0.45" stop-color="#4B2416"/>
+      <stop offset="1" stop-color="#1A0E09"/>
+    </linearGradient>
+    <radialGradient id="topGlow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(1440 360) rotate(149) scale(1020 560)">
+      <stop offset="0" stop-color="#FFA84E" stop-opacity="0.58"/>
+      <stop offset="1" stop-color="#FFA84E" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="leaf" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(1110 910) rotate(90) scale(240 730)">
+      <stop offset="0" stop-color="#6D8A2E"/>
+      <stop offset="1" stop-color="#34471A"/>
+    </radialGradient>
+    <radialGradient id="bowl" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(1110 935) rotate(90) scale(240 680)">
+      <stop offset="0" stop-color="#9E5745"/>
+      <stop offset="1" stop-color="#5C2C21"/>
+    </radialGradient>
+    <radialGradient id="rice" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(1106 760) rotate(90) scale(205 560)">
+      <stop offset="0" stop-color="#FFE8A9"/>
+      <stop offset="1" stop-color="#E7AE48"/>
+    </radialGradient>
+    <filter id="steamBlur" x="-200" y="-200" width="2600" height="1700" filterUnits="userSpaceOnUse">
+      <feGaussianBlur stdDeviation="24"/>
+    </filter>
+    <filter id="bowlShadow" x="260" y="450" width="1700" height="700" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="24" stdDeviation="22" flood-color="#000000" flood-opacity="0.34"/>
+    </filter>
+  </defs>
+
+  <rect width="2200" height="1300" fill="url(#bg)"/>
+  <rect width="2200" height="1300" fill="url(#topGlow)"/>
+
+  <g opacity="0.26" filter="url(#steamBlur)">
+    <ellipse cx="730" cy="270" rx="250" ry="120" fill="#FFD9A2"/>
+    <ellipse cx="1060" cy="220" rx="220" ry="100" fill="#FFE5BF"/>
+    <ellipse cx="1390" cy="250" rx="280" ry="120" fill="#FFD6A0"/>
+    <ellipse cx="1660" cy="320" rx="250" ry="120" fill="#FFB76A"/>
+  </g>
+
+  <g opacity="0.52" stroke="#FFE3BA" stroke-linecap="round" stroke-width="12">
+    <path d="M836 334C796 274 806 205 874 152"/>
+    <path d="M1012 292C968 234 980 169 1044 120"/>
+    <path d="M1188 300C1142 238 1156 170 1220 124"/>
+    <path d="M1362 338C1320 276 1328 210 1388 164"/>
+  </g>
+
+  <ellipse cx="1108" cy="922" rx="735" ry="266" fill="url(#leaf)" opacity="0.8"/>
+  <g opacity="0.3" stroke="#9BC257" stroke-width="4">
+    <path d="M470 915C700 820 1508 824 1746 915"/>
+    <path d="M512 974C744 883 1470 886 1706 974"/>
+  </g>
+
+  <g filter="url(#bowlShadow)">
+    <ellipse cx="1108" cy="1000" rx="620" ry="118" fill="#150C08" opacity="0.56"/>
+    <ellipse cx="1108" cy="872" rx="660" ry="234" fill="url(#bowl)"/>
+    <ellipse cx="1108" cy="810" rx="612" ry="180" fill="#7B3D2E"/>
+    <ellipse cx="1108" cy="770" rx="568" ry="150" fill="url(#rice)"/>
+  </g>
+
+  <g opacity="0.96">
+    <ellipse cx="870" cy="764" rx="86" ry="38" fill="#A94D20"/>
+    <ellipse cx="1026" cy="708" rx="92" ry="40" fill="#C7672E"/>
+    <ellipse cx="1176" cy="792" rx="122" ry="52" fill="#B35424"/>
+    <ellipse cx="1328" cy="736" rx="100" ry="44" fill="#9F431B"/>
+    <ellipse cx="1430" cy="806" rx="82" ry="36" fill="#C16833"/>
+    <ellipse cx="740" cy="818" rx="76" ry="34" fill="#8E3915"/>
+    <ellipse cx="1218" cy="686" rx="58" ry="26" fill="#D27F40"/>
+  </g>
+
+  <g opacity="0.75">
+    <circle cx="662" cy="752" r="8" fill="#F7D596"/>
+    <circle cx="710" cy="808" r="7" fill="#F7D596"/>
+    <circle cx="774" cy="738" r="7" fill="#F1CF8C"/>
+    <circle cx="824" cy="804" r="8" fill="#F7D596"/>
+    <circle cx="904" cy="722" r="8" fill="#F1CF8C"/>
+    <circle cx="968" cy="790" r="7" fill="#F7D596"/>
+    <circle cx="1044" cy="726" r="8" fill="#F3D190"/>
+    <circle cx="1112" cy="804" r="7" fill="#F7D596"/>
+    <circle cx="1188" cy="726" r="8" fill="#F3D190"/>
+    <circle cx="1264" cy="804" r="7" fill="#F7D596"/>
+    <circle cx="1348" cy="730" r="8" fill="#F1CF8C"/>
+    <circle cx="1426" cy="792" r="7" fill="#F7D596"/>
+    <circle cx="1512" cy="746" r="8" fill="#F3D190"/>
+  </g>
+
+  <g opacity="0.55">
+    <ellipse cx="1120" cy="698" rx="22" ry="11" fill="#2D5D2D"/>
+    <ellipse cx="926" cy="760" rx="18" ry="9" fill="#2D5D2D"/>
+    <ellipse cx="1334" cy="770" rx="20" ry="10" fill="#2D5D2D"/>
+    <ellipse cx="1000" cy="832" rx="18" ry="9" fill="#2D5D2D"/>
+  </g>
+</svg>

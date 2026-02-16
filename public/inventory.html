@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Inventory | Bezawada Biryani House</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Manrope:wght@400;500;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/styles.css" />
+</head>
+<body>
+  <header class="site-header">
+    <nav class="nav">
+      <a class="logo" href="admin.html"><img src="assets/bezawada-biryani-house-logo.svg" alt="Bezawada Biryani House" /></a>
+      <div class="nav-links">
+        <a href="admin.html">Home</a>
+        <button class="btn btn-outline btn-sm" id="logoutBtn" type="button">Logout</button>
+      </div>
+    </nav>
+  </header>
+
+  <main class="admin-layout">
+    <section class="card">
+      <div class="section-head section-with-back">
+        <h1>Inventory</h1>
+        <div class="form-actions">
+          <button class="btn btn-sm" type="button" id="addInventoryBtn">Add Inventory</button>
+          <a class="btn btn-outline btn-sm" href="admin.html">Back</a>
+        </div>
+      </div>
+
+      <label>
+        Search Inventory
+        <input id="inventorySearchInput" type="text" placeholder="Search by name, category, SKU" />
+      </label>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Category</th>
+              <th>SKU</th>
+              <th>Price</th>
+              <th>Stock</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="productTableBody"></tbody>
+        </table>
+      </div>
+      <div id="inventoryPagination" class="pagination-row"></div>
+    </section>
+  </main>
+
+  <script src="assets/app.js"></script>
+</body>
+</html>

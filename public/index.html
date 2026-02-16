@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Welcome | Bezawada Biryani House</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Manrope:wght@400;500;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/styles.css" />
+</head>
+<body>
+  <header class="site-header">
+    <nav class="nav">
+      <a class="logo" href="index.html"><img src="assets/bezawada-biryani-house-logo.svg" alt="Bezawada Biryani House" /></a>
+      <div class="nav-links">
+        <a class="btn btn-outline btn-sm" href="auth.html?mode=login">Login</a>
+        <a class="btn btn-sm" href="auth.html?mode=signup">Signup</a>
+      </div>
+    </nav>
+  </header>
+
+  <main>
+    <section class="landing-hero">
+      <img
+        id="landingHeroImage"
+        class="landing-hero-image"
+        src="assets/landing-biryani.png"
+        alt="Close-up aromatic biryani in modern bowl"
+      />
+      <div class="landing-overlay">
+        <div class="landing-copy">
+          <p class="landing-tagline">From OG Bezawada, New-Age Authentic Biryani.</p>
+          <h1>Bezawada Biryani House</h1>
+          <p class="landing-description">
+            Crafted with aromatic long-grain rice, slow-cooked meats, and bold coastal Andhra spices.
+            Every biryani pot brings classic Bezawada soul with a modern, premium dining experience.
+          </p>
+          <div class="hero-actions">
+            <a class="btn" href="auth.html?mode=signup">Get Started</a>
+            <a class="btn btn-outline" href="auth.html?mode=login">Login</a>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+  <script>
+    (function () {
+      const heroImage = document.getElementById("landingHeroImage");
+      if (!heroImage) return;
+      const candidates = [
+        "assets/landing-biryani.png",
+        "assets/landing-biryani.jpg",
+        "assets/landing-biryani.jpeg",
+        "assets/landing-biryani.webp",
+        "assets/landing-biryani.avif",
+        "assets/biryani.png",
+        "assets/biryani.jpg",
+        "assets/biryani.jpeg",
+        "assets/biryani.webp",
+        "assets/hero-biryani.png",
+        "assets/hero-biryani.jpg",
+        "assets/hero-biryani.jpeg",
+        "assets/hero-biryani.webp",
+        "assets/biryani-hero-art.svg"
+      ];
+      let index = 0;
+      heroImage.onerror = function () {
+        index += 1;
+        if (index < candidates.length) {
+          heroImage.src = candidates[index];
+        }
+      };
+      heroImage.src = candidates[index];
+    })();
+  </script>
+  <script src="assets/app.js"></script>
+</body>
+</html>

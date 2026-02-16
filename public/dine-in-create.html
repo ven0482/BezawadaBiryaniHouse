@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Create Dine In Order | Bezawada Biryani House</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Manrope:wght@400;500;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/styles.css" />
+</head>
+<body>
+  <header class="site-header">
+    <nav class="nav">
+      <a class="logo" href="admin.html"><img src="assets/bezawada-biryani-house-logo.svg" alt="Bezawada Biryani House" /></a>
+      <div class="nav-links">
+        <a href="admin.html">Home</a>
+        <a href="dine-in.html">Dine In</a>
+        <button class="btn btn-outline btn-sm" id="logoutBtn" type="button">Logout</button>
+      </div>
+    </nav>
+  </header>
+
+  <main class="admin-layout" id="dineInCreatePage">
+    <section class="card">
+      <div class="section-head section-with-back">
+        <h1 id="dineInCreateTitle">Create Order</h1>
+        <div class="head-actions">
+          <button class="btn btn-sm" type="button" id="dineInCreateOrderBtn">Create Order</button>
+          <a class="btn btn-outline btn-sm" id="dineInCreateCloseBtn" href="dine-in.html">Close</a>
+        </div>
+      </div>
+
+      <p class="small" id="dineInCreateStatus"></p>
+
+      <div class="admin-form inline-two">
+        <label>
+          Customer Name (Optional)
+          <input type="text" id="dineInCreateCustomerName" placeholder="Optional" />
+        </label>
+        <label>
+          Customer Phone (Optional)
+          <input type="tel" id="dineInCreateCustomerPhone" placeholder="Optional" />
+        </label>
+      </div>
+      <div class="order-top-actions">
+        <div id="dineInCreateCategories" class="pill-row"></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="order-top-actions">
+        <h2>Items Added To Order</h2>
+      </div>
+      <div id="dineInCreateSelectedItems" class="cart-items"></div>
+      <div class="cart-summary">
+        <div class="total"><span>Selected Total</span><strong id="dineInCreateSelectedTotal">₹0</strong></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Menu</h2>
+      <div id="dineInCreateMenuGrid" class="product-grid"></div>
+    </section>
+  </main>
+
+  <script>
+    (function () {
+      const params = new URLSearchParams(window.location.search);
+      const back = String(params.get("back") || "dine-in.html").trim() || "dine-in.html";
+      const close1 = document.getElementById("dineInCreateCloseBtn");
+      if (close1) close1.setAttribute("href", back);
+    })();
+  </script>
+  <script src="assets/app.js"></script>
+</body>
+</html>

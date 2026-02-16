@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cart | Bezawada Biryani House</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Manrope:wght@400;500;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/styles.css" />
+</head>
+<body>
+  <header class="site-header">
+    <nav class="nav">
+      <a class="logo" href="home.html"><img src="assets/bezawada-biryani-house-logo.svg" alt="Bezawada Biryani House" /></a>
+      <div class="nav-links">
+        <a href="home.html">Home</a>
+        <a href="profile.html">My Profile</a>
+        <a href="customer-orders.html">Orders</a>
+        <button class="btn btn-sm" id="logoutBtn" type="button">Logout</button>
+      </div>
+    </nav>
+  </header>
+
+  <main class="admin-layout">
+    <section class="card">
+      <h1>Your Cart</h1>
+      <div id="cartItems" class="cart-items"></div>
+      <div class="cart-summary">
+        <div><span>Subtotal</span><strong id="subtotal">₹0</strong></div>
+        <div><span>Delivery</span><strong id="deliveryFee">₹40</strong></div>
+        <div class="total"><span>Total</span><strong id="total">₹40</strong></div>
+      </div>
+
+      <form id="checkoutForm" class="checkout-form">
+        <label>
+          Order Type
+          <select id="orderType" required>
+            <option value="DELIVERY" selected>Delivery</option>
+            <option value="PICKUP">Pickup</option>
+          </select>
+        </label>
+        <label>
+          Full Name
+          <input type="text" id="customerName" required placeholder="Your name" />
+        </label>
+        <label>
+          Phone Number
+          <input type="tel" id="customerPhone" required placeholder="10-digit mobile" />
+        </label>
+        <label id="customerAddressWrap">
+          Delivery Address
+          <textarea id="customerAddress" required placeholder="House no, street, city"></textarea>
+        </label>
+        <label>
+          Payment Method
+          <select id="paymentMethod" required>
+            <option value="UPI">UPI</option>
+            <option value="CARD">Credit/Debit Card</option>
+            <option value="APPLE_PAY">Apple Pay</option>
+            <option value="GOOGLE_PAY">Google Pay</option>
+          </select>
+        </label>
+        <button class="btn" type="submit">Pay & Place Order</button>
+      </form>
+
+      <div id="upiArea" class="upi-area hidden">
+        <h3>Payment</h3>
+        <p id="paymentAssistText">Complete payment using your selected method:</p>
+        <a id="upiLink" class="btn btn-sm" href="#" target="_blank" rel="noopener">Open UPI App</a>
+        <button id="markPaidBtn" class="btn btn-outline btn-sm" type="button">I Have Paid</button>
+        <p class="small" id="upiUri"></p>
+        <div id="orderSuccess" class="success hidden"></div>
+      </div>
+    </section>
+  </main>
+
+  <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+  <script src="assets/app.js"></script>
+</body>
+</html>
