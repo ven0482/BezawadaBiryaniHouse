@@ -1958,15 +1958,12 @@ app.post("/api/checkout/create-intent", authMiddleware, customerOnly, async (req
 
         db.prepare("UPDATE orders SET payment_ref = ?, updated_at = datetime('now') WHERE id = ?").run(rpOrder.id, orderId);
 
-        try {
-          await sendOrderInvoiceEmail(emailPayload);
-        } catch (emailError) {
-          console.error(`Failed to send order email for ${orderId}:`, emailError.message);
-        }
+        const emailSent = await trySendOrderInvoiceEmail(emailPayload);
 
         return res.status(201).json({
           orderId,
           total: created.total,
+          emailSent,
           payment: {
             provider: "razorpay",
             keyId: razorpayKeyId,
@@ -1983,14 +1980,11 @@ app.post("/api/checkout/create-intent", authMiddleware, customerOnly, async (req
     }
 
     if (created.paymentMode !== "UPI") {
-      try {
-        await sendOrderInvoiceEmail(emailPayload);
-      } catch (emailError) {
-        console.error(`Failed to send order email for ${orderId}:`, emailError.message);
-      }
+      const emailSent = await trySendOrderInvoiceEmail(emailPayload);
       return res.status(201).json({
         orderId,
         total: created.total,
+        emailSent,
         payment: {
           provider: "manual_confirmation",
           paymentMode: created.paymentMode
@@ -2002,15 +1996,12 @@ app.post("/api/checkout/create-intent", authMiddleware, customerOnly, async (req
       BUSINESS_NAME
     )}&tn=${encodeURIComponent(orderId)}&am=${created.total.toFixed(2)}&cu=INR`;
 
-    try {
-      await sendOrderInvoiceEmail(emailPayload);
-    } catch (emailError) {
-      console.error(`Failed to send order email for ${orderId}:`, emailError.message);
-    }
+    const emailSent = await trySendOrderInvoiceEmail(emailPayload);
 
     return res.status(201).json({
       orderId,
       total: created.total,
+      emailSent,
       payment: {
         provider: "upi_intent",
         paymentMode: created.paymentMode,
