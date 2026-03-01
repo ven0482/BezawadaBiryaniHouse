@@ -72,6 +72,8 @@ db.exec(`
     name TEXT NOT NULL,
     phone TEXT NOT NULL UNIQUE,
     address TEXT,
+    country TEXT,
+    state TEXT,
     registered_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
@@ -149,6 +151,16 @@ const hasCustomerAddressColumn = db
   .some((column) => column.name === "address");
 if (!hasCustomerAddressColumn) {
   db.exec("ALTER TABLE customers ADD COLUMN address TEXT");
+}
+
+const customerColumns = db.prepare("PRAGMA table_info(customers)").all();
+const hasCustomerCountryColumn = customerColumns.some((column) => column.name === "country");
+const hasCustomerStateColumn = customerColumns.some((column) => column.name === "state");
+if (!hasCustomerCountryColumn) {
+  db.exec("ALTER TABLE customers ADD COLUMN country TEXT");
+}
+if (!hasCustomerStateColumn) {
+  db.exec("ALTER TABLE customers ADD COLUMN state TEXT");
 }
 
 const userColumns = db.prepare("PRAGMA table_info(users)").all();

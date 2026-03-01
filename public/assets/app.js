@@ -2,6 +2,92 @@ const DELIVERY_FEE = 40;
 const PAGE_SIZE = 10;
 const MAX_PAGES = 10;
 const USD_INR_RATE = 83;
+const INDIA_STATES = [
+  "Andhra Pradesh",
+  "Arunachal Pradesh",
+  "Assam",
+  "Bihar",
+  "Chhattisgarh",
+  "Goa",
+  "Gujarat",
+  "Haryana",
+  "Himachal Pradesh",
+  "Jharkhand",
+  "Karnataka",
+  "Kerala",
+  "Madhya Pradesh",
+  "Maharashtra",
+  "Manipur",
+  "Meghalaya",
+  "Mizoram",
+  "Nagaland",
+  "Odisha",
+  "Punjab",
+  "Rajasthan",
+  "Sikkim",
+  "Tamil Nadu",
+  "Telangana",
+  "Tripura",
+  "Uttar Pradesh",
+  "Uttarakhand",
+  "West Bengal",
+  "Delhi",
+  "Jammu and Kashmir",
+  "Ladakh",
+  "Puducherry"
+];
+const USA_STATES = [
+  "Alabama",
+  "Alaska",
+  "Arizona",
+  "Arkansas",
+  "California",
+  "Colorado",
+  "Connecticut",
+  "Delaware",
+  "Florida",
+  "Georgia",
+  "Hawaii",
+  "Idaho",
+  "Illinois",
+  "Indiana",
+  "Iowa",
+  "Kansas",
+  "Kentucky",
+  "Louisiana",
+  "Maine",
+  "Maryland",
+  "Massachusetts",
+  "Michigan",
+  "Minnesota",
+  "Mississippi",
+  "Missouri",
+  "Montana",
+  "Nebraska",
+  "Nevada",
+  "New Hampshire",
+  "New Jersey",
+  "New Mexico",
+  "New York",
+  "North Carolina",
+  "North Dakota",
+  "Ohio",
+  "Oklahoma",
+  "Oregon",
+  "Pennsylvania",
+  "Rhode Island",
+  "South Carolina",
+  "South Dakota",
+  "Tennessee",
+  "Texas",
+  "Utah",
+  "Vermont",
+  "Virginia",
+  "Washington",
+  "West Virginia",
+  "Wisconsin",
+  "Wyoming"
+];
 const API = {
   signupCustomer: "/api/auth/signup-customer",
   login: "/api/auth/login",
@@ -38,13 +124,54 @@ const API = {
   markPaidManual: "/api/checkout/mark-paid-manual"
 };
 
-let currentCurrency = "USD";
+let currentCurrency = "INR";
 const money = (value) => {
   const amountInInr = Number(value || 0);
   if (currentCurrency === "INR") return `₹${amountInInr.toFixed(0)}`;
   const amountInUsd = amountInInr / USD_INR_RATE;
   return `$${amountInUsd.toFixed(2)}`;
 };
+
+function normalizeCountry(value) {
+  const raw = String(value || "").trim().toUpperCase();
+  if (raw === "INDIA" || raw === "IN") return "INDIA";
+  if (
+    raw === "USA" ||
+    raw === "US" ||
+    raw === "UNITED STATES" ||
+    raw === "UNITED STATES OF AMERICA"
+  ) {
+    return "USA";
+  }
+  return "";
+}
+
+function currencyForCountry(country) {
+  const normalized = normalizeCountry(country);
+  if (normalized === "INDIA") return "INR";
+  if (normalized === "USA") return "USD";
+  return null;
+}
+
+function populateStateOptions(countryEl, stateEl, selectedState = "") {
+  if (!countryEl || !stateEl) return;
+  const normalizedCountry = normalizeCountry(countryEl.value);
+  const states = normalizedCountry === "INDIA" ? INDIA_STATES : normalizedCountry === "USA" ? USA_STATES : [];
+  stateEl.innerHTML = `<option value="">Select state</option>${states
+    .map((state) => `<option value="${state}">${state}</option>`)
+    .join("")}`;
+  stateEl.disabled = !normalizedCountry;
+  if (selectedState && states.includes(selectedState)) {
+    stateEl.value = selectedState;
+    return;
+  }
+  stateEl.value = "";
+}
+
+function applyCurrencyForCountry(country, fallbackCurrency) {
+  const inferred = currencyForCountry(country);
+  applyCurrency(inferred || fallbackCurrency || getSavedCurrency());
+}
 const formatDateTime = (value) => new Date(`${value}Z`).toLocaleString("en-IN");
 const formatOrderType = (value) => (String(value || "").toUpperCase() === "PICKUP" ? "Pickup" : "Delivery");
 const formatOrderSource = (order) => {
@@ -140,6 +267,7 @@ const NAV_GUARD_KEY = "foodbiz_nav_guard_v1";
 const ADMIN_BUTTON_ORDER_KEY = "foodbiz_admin_btn_order_v1";
 const THEME_MODE_KEY_PREFIX = "foodbiz_theme_mode_v1";
 const CURRENCY_KEY_PREFIX = "foodbiz_currency_v1";
+const GLOBAL_CURRENCY_KEY = "foodbiz_currency_global_v1";
 
 async function request(url, options = {}) {
   const token = localStorage.getItem(AUTH_TOKEN_KEY);
@@ -210,7 +338,9 @@ function initThemeMode() {
 }
 
 function getSavedCurrency() {
-  const raw = String(localStorage.getItem(getCurrencyStorageKey()) || "USD").toUpperCase();
+  const scoped = String(localStorage.getItem(getCurrencyStorageKey()) || "").toUpperCase();
+  const global = String(localStorage.getItem(GLOBAL_CURRENCY_KEY) || "").toUpperCase();
+  const raw = scoped || global || "INR";
   return raw === "INR" ? "INR" : "USD";
 }
 
@@ -221,6 +351,9 @@ function applyCurrency(currency) {
     document.body.setAttribute("data-currency", normalized);
   }
   localStorage.setItem(getCurrencyStorageKey(), normalized);
+  if (getLocalAuthUser()?.role === "admin") {
+    localStorage.setItem(GLOBAL_CURRENCY_KEY, normalized);
+  }
 }
 
 function initCurrency() {
@@ -345,6 +478,8 @@ function initAuthPage() {
   const heroLoginBtn = document.getElementById("heroLoginBtn");
   const heroSignupBtn = document.getElementById("heroSignupBtn");
   const customerSignupForm = document.getElementById("customerSignupForm");
+  const signupCountryEl = document.getElementById("signupCountry");
+  const signupStateEl = document.getElementById("signupState");
   const adminLoginForm = document.getElementById("adminLoginForm");
   const adminRegisterForm = document.getElementById("adminRegisterForm");
   const adminVerifyOtpForm = document.getElementById("adminVerifyOtpForm");
@@ -429,6 +564,14 @@ function initAuthPage() {
     activateAuthTab("customer-login");
   }
 
+  if (signupCountryEl && signupStateEl) {
+    populateStateOptions(signupCountryEl, signupStateEl);
+    signupCountryEl.addEventListener("change", () => {
+      populateStateOptions(signupCountryEl, signupStateEl);
+      applyCurrencyForCountry(signupCountryEl.value, getSavedCurrency());
+    });
+  }
+
   customerLoginForm.addEventListener("submit", async (event) => {
     event.preventDefault();
     try {
@@ -457,6 +600,8 @@ function initAuthPage() {
           email: document.getElementById("signupEmail").value.trim(),
           password: document.getElementById("signupPassword").value,
           phone: document.getElementById("signupPhone").value.trim(),
+          country: signupCountryEl?.value || "",
+          state: signupStateEl?.value || "",
           address: document.getElementById("signupAddress").value.trim()
         })
       });
@@ -637,6 +782,7 @@ function initShopPage() {
 
   requireRole("customer").then((me) => {
     if (!me) return;
+    applyCurrencyForCountry(me.customer?.country || "", getSavedCurrency());
     loadProducts()
       .then(() => {
         renderCategories();
@@ -667,6 +813,8 @@ function initCartPage() {
   const checkoutForm = document.getElementById("checkoutForm");
   const customerAddressWrap = document.getElementById("customerAddressWrap");
   const customerAddressEl = document.getElementById("customerAddress");
+  const customerCountryEl = document.getElementById("customerCountry");
+  const customerStateEl = document.getElementById("customerState");
   const upiArea = document.getElementById("upiArea");
   const paymentAssistText = document.getElementById("paymentAssistText");
   const upiLink = document.getElementById("upiLink");
@@ -775,6 +923,8 @@ function initCartPage() {
       customerName: document.getElementById("customerName").value.trim(),
       customerPhone: document.getElementById("customerPhone").value.trim(),
       customerAddress: customerAddressEl.value.trim(),
+      customerCountry: customerCountryEl?.value || "",
+      customerState: customerStateEl?.value || "",
       cartItems
     };
 
@@ -880,12 +1030,25 @@ function initCartPage() {
       renderCart();
     });
   }
+  if (customerCountryEl && customerStateEl) {
+    populateStateOptions(customerCountryEl, customerStateEl);
+    customerCountryEl.addEventListener("change", () => {
+      populateStateOptions(customerCountryEl, customerStateEl);
+      applyCurrencyForCountry(customerCountryEl.value, getSavedCurrency());
+      renderCart();
+    });
+  }
 
   requireRole("customer").then((me) => {
     if (!me) return;
     document.getElementById("customerName").value = `${me.customer?.firstName || ""} ${me.customer?.lastName || ""}`.trim();
     document.getElementById("customerPhone").value = me.customer?.phone || "";
     document.getElementById("customerAddress").value = me.customer?.address || "";
+    if (customerCountryEl && customerStateEl) {
+      customerCountryEl.value = normalizeCountry(me.customer?.country || "");
+      populateStateOptions(customerCountryEl, customerStateEl, me.customer?.state || "");
+      applyCurrencyForCountry(customerCountryEl.value, getSavedCurrency());
+    }
     syncOrderTypeUI();
     loadProducts()
       .then(() => {
@@ -2983,15 +3146,30 @@ function initProfilePage() {
   const firstNameEl = document.getElementById("profileFirstName");
   const lastNameEl = document.getElementById("profileLastName");
   const phoneEl = document.getElementById("profilePhone");
+  const countryEl = document.getElementById("profileCountry");
+  const stateEl = document.getElementById("profileState");
   const addressEl = document.getElementById("profileAddress");
   const themeModeEl = document.getElementById("profileThemeMode");
   const ordersBody = document.getElementById("myOrdersTableBody");
 
+  if (countryEl && stateEl) {
+    populateStateOptions(countryEl, stateEl);
+    countryEl.addEventListener("change", () => {
+      populateStateOptions(countryEl, stateEl);
+      applyCurrencyForCountry(countryEl.value, getSavedCurrency());
+    });
+  }
+
   requireRole("customer").then(async (me) => {
     if (!me) return;
+    applyCurrencyForCountry(me.customer?.country || "", getSavedCurrency());
     firstNameEl.value = me.customer?.firstName || "";
     lastNameEl.value = me.customer?.lastName || "";
     phoneEl.value = me.customer?.phone || "";
+    if (countryEl && stateEl) {
+      countryEl.value = normalizeCountry(me.customer?.country || "");
+      populateStateOptions(countryEl, stateEl, me.customer?.state || "");
+    }
     addressEl.value = me.customer?.address || "";
     if (themeModeEl) themeModeEl.value = getSavedThemeMode();
 
@@ -3030,6 +3208,8 @@ function initProfilePage() {
           firstName: firstNameEl.value.trim(),
           lastName: lastNameEl.value.trim(),
           phone: phoneEl.value.trim(),
+          country: countryEl?.value || "",
+          state: stateEl?.value || "",
           address: addressEl.value.trim()
         })
       });
@@ -3047,6 +3227,7 @@ function initCustomerOrdersPage() {
 
   requireRole("customer").then(async (me) => {
     if (!me) return;
+    applyCurrencyForCountry(me.customer?.country || "", getSavedCurrency());
     try {
       const orders = await request(API.myOrders);
       if (!orders.length) {
@@ -3098,6 +3279,7 @@ function initCustomerOrderDetailPage() {
 
   requireRole("customer").then(async (me) => {
     if (!me) return;
+    applyCurrencyForCountry(me.customer?.country || "", getSavedCurrency());
     try {
       const order = await request(`${API.myOrders}/${encodeURIComponent(orderId)}`);
       orderMeta.innerHTML = `
@@ -3219,8 +3401,67 @@ function initPageGuardByPath() {
   }
 }
 
+function initMobileMode() {
+  const navs = Array.from(document.querySelectorAll(".nav"));
+  if (!navs.length) return;
+
+  const mediaQuery = window.matchMedia("(max-width: 920px)");
+  const mobileUserAgent = /Android|iPhone|iPad|iPod|Mobile|Windows Phone/i.test(
+    navigator.userAgent || ""
+  );
+
+  function isMobileMode() {
+    return mediaQuery.matches || mobileUserAgent;
+  }
+
+  function ensureToggle(nav, navLinks) {
+    let toggle = nav.querySelector(".nav-menu-toggle");
+    if (!toggle) {
+      toggle = document.createElement("button");
+      toggle.type = "button";
+      toggle.className = "btn btn-outline btn-sm nav-menu-toggle";
+      toggle.setAttribute("aria-expanded", "false");
+      toggle.textContent = "Menu";
+      nav.insertBefore(toggle, navLinks);
+    }
+    return toggle;
+  }
+
+  function applyMode() {
+    const mobile = isMobileMode();
+    document.body.setAttribute("data-device", mobile ? "mobile" : "desktop");
+
+    navs.forEach((nav) => {
+      const navLinks = nav.querySelector(".nav-links");
+      if (!navLinks) return;
+      const toggle = ensureToggle(nav, navLinks);
+
+      if (mobile) {
+        toggle.classList.remove("hidden");
+      } else {
+        nav.classList.remove("mobile-nav-open");
+        toggle.classList.add("hidden");
+        toggle.setAttribute("aria-expanded", "false");
+      }
+
+      if (!toggle.dataset.bound) {
+        toggle.addEventListener("click", () => {
+          const open = nav.classList.toggle("mobile-nav-open");
+          toggle.setAttribute("aria-expanded", open ? "true" : "false");
+        });
+        toggle.dataset.bound = "1";
+      }
+    });
+  }
+
+  applyMode();
+  mediaQuery.addEventListener("change", applyMode);
+  window.addEventListener("resize", applyMode);
+}
+
 initThemeMode();
 initCurrency();
+initMobileMode();
 initPageGuardByPath();
 initActiveNavLinks();
 initAuthPage();

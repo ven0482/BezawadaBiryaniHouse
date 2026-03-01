@@ -48,6 +48,20 @@
           Phone Number
           <input type="tel" id="customerPhone" required placeholder="10-digit mobile" />
         </label>
+        <label>
+          Country
+          <select id="customerCountry">
+            <option value="">Select country</option>
+            <option value="INDIA">India</option>
+            <option value="USA">USA</option>
+          </select>
+        </label>
+        <label>
+          State
+          <select id="customerState" disabled>
+            <option value="">Select state</option>
+          </select>
+        </label>
         <label id="customerAddressWrap">
           Delivery Address
           <textarea id="customerAddress" required placeholder="House no, street, city"></textarea>

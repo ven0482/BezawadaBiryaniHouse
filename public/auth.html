@@ -44,6 +44,20 @@
         <label>Email <input type="email" id="signupEmail" required /></label>
         <label>Password <input type="password" id="signupPassword" required /></label>
         <label>Phone <input type="tel" id="signupPhone" required /></label>
+        <label>
+          Country
+          <select id="signupCountry">
+            <option value="">Select country</option>
+            <option value="INDIA">India</option>
+            <option value="USA">USA</option>
+          </select>
+        </label>
+        <label>
+          State
+          <select id="signupState" disabled>
+            <option value="">Select state</option>
+          </select>
+        </label>
         <label>Address <textarea id="signupAddress" required></textarea></label>
         <button class="btn" type="submit">Signup</button>
       </form>

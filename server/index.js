@@ -323,6 +323,8 @@ app.post("/api/auth/signup-customer", (req, res) => {
   const lastName = String(req.body.lastName || "").trim();
   const phone = String(req.body.phone || "").trim();
   const address = String(req.body.address || "").trim();
+  const country = String(req.body.country || "").trim();
+  const state = String(req.body.state || "").trim();
 
   if (!email || !password || !firstName || !lastName || !phone || !address) {
     return res.status(400).json({ error: "All fields are required." });
@@ -340,8 +342,8 @@ app.post("/api/auth/signup-customer", (req, res) => {
 
   db.transaction(() => {
     db.prepare(
-      "INSERT INTO customers (id, name, phone, address, registered_at, updated_at) VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))"
-    ).run(customerId, fullName, phone, address);
+      "INSERT INTO customers (id, name, phone, address, country, state, registered_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))"
+    ).run(customerId, fullName, phone, address, country || null, state || null);
     db.prepare(
       "INSERT INTO users (id, email, password_hash, role, email_verified, customer_id, created_at, updated_at) VALUES (?, ?, ?, 'customer', 1, ?, datetime('now'), datetime('now'))"
     ).run(userId, email, hashPassword(password), customerId);
@@ -733,6 +735,8 @@ app.get("/api/auth/me", authMiddleware, (req, res) => {
         lastName: parts.slice(1).join(" "),
         phone: customer?.phone || "",
         address: customer?.address || "",
+        country: customer?.country || "",
+        state: customer?.state || "",
         registeredAt: customer?.registered_at || null
       }
     });
@@ -768,6 +772,8 @@ app.patch("/api/auth/profile", authMiddleware, customerOnly, (req, res) => {
   const lastName = String(req.body.lastName || "").trim();
   const phone = String(req.body.phone || "").trim();
   const address = String(req.body.address || "").trim();
+  const country = String(req.body.country || "").trim();
+  const state = String(req.body.state || "").trim();
   if (!firstName || !lastName || !phone || !address) {
     return res.status(400).json({ error: "firstName, lastName, phone and address are required." });
   }
@@ -779,10 +785,12 @@ app.patch("/api/auth/profile", authMiddleware, customerOnly, (req, res) => {
   if (conflict) return res.status(409).json({ error: "Phone already used by another customer." });
 
   db.transaction(() => {
-    db.prepare("UPDATE customers SET name = ?, phone = ?, address = ?, updated_at = datetime('now') WHERE id = ?").run(
+    db.prepare("UPDATE customers SET name = ?, phone = ?, address = ?, country = ?, state = ?, updated_at = datetime('now') WHERE id = ?").run(
       fullName,
       phone,
       address,
+      country || null,
+      state || null,
       customerId
     );
     db.prepare("UPDATE orders SET customer_name = ?, customer_phone = ?, customer_address = ?, updated_at = datetime('now') WHERE customer_id = ?").run(
@@ -1812,7 +1820,7 @@ app.post("/api/admin/phone-order/orders/:id/add-items", authMiddleware, adminOnl
 });
 
 app.post("/api/checkout/create-intent", authMiddleware, customerOnly, async (req, res) => {
-  const { customerName, customerPhone, customerAddress, cartItems } = req.body;
+  const { customerName, customerPhone, customerAddress, customerCountry, customerState, cartItems } = req.body;
   const orderType = String(req.body.orderType || "DELIVERY").toUpperCase();
   const paymentMode = String(req.body.paymentMode || "UPI").toUpperCase();
   const sanitizedItems = Array.isArray(cartItems) ? cartItems : [];
@@ -1836,6 +1844,8 @@ app.post("/api/checkout/create-intent", authMiddleware, customerOnly, async (req
       const effectiveName = String(customerName || customer.name || "").trim();
       const effectivePhone = String(customerPhone || customer.phone || "").trim();
       const effectiveAddress = String(customerAddress || customer.address || "").trim();
+      const effectiveCountry = String(customerCountry || customer.country || "").trim();
+      const effectiveState = String(customerState || customer.state || "").trim();
       if (!effectiveName || !effectivePhone) {
         throw new Error("Customer profile is incomplete.");
       }
@@ -1846,7 +1856,7 @@ app.post("/api/checkout/create-intent", authMiddleware, customerOnly, async (req
       const productById = db.prepare("SELECT * FROM products WHERE id = ?");
       const updateStock = db.prepare("UPDATE products SET stock = stock - ?, updated_at = datetime('now') WHERE id = ?");
       const updateCustomerProfile = db.prepare(
-        "UPDATE customers SET name = ?, phone = ?, address = ?, updated_at = datetime('now') WHERE id = ?"
+        "UPDATE customers SET name = ?, phone = ?, address = ?, country = ?, state = ?, updated_at = datetime('now') WHERE id = ?"
       );
       const insertOrder = db.prepare(`
         INSERT INTO orders (
@@ -1888,7 +1898,14 @@ app.post("/api/checkout/create-intent", authMiddleware, customerOnly, async (req
 
       const appliedDeliveryFee = orderType === "PICKUP" ? 0 : DELIVERY_FEE;
       const total = subtotal + appliedDeliveryFee;
-      updateCustomerProfile.run(effectiveName, effectivePhone, effectiveAddress, customer.id);
+      updateCustomerProfile.run(
+        effectiveName,
+        effectivePhone,
+        effectiveAddress,
+        effectiveCountry || null,
+        effectiveState || null,
+        customer.id
+      );
 
       insertOrder.run(
         orderId,
