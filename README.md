@@ -47,12 +47,13 @@ npm run dev
    - `npm start` run command
    - Persistent disk at `/var/data` for SQLite
 4. In Render Environment Variables, set production secrets:
+   - `SUPER_ADMIN_SETUP_KEY` (used one time to create first Super Admin)
    - `RAZORPAY_KEY_ID`
    - `RAZORPAY_KEY_SECRET`
    - `BUSINESS_UPI_ID`
    - `BUSINESS_NAME`
    - `DELIVERY_FEE`
-   - `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` (optional, for OTP emails)
+   - `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` (optional, for password reset emails)
 5. Deploy and open the generated `https://<your-service>.onrender.com` URL.
 
 ### Free Tier Note

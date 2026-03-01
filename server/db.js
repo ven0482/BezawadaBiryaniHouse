@@ -84,6 +84,7 @@ db.exec(`
     password_hash TEXT NOT NULL,
     role TEXT NOT NULL CHECK(role IN ('customer', 'admin')),
     email_verified INTEGER NOT NULL DEFAULT 0,
+    is_super_admin INTEGER NOT NULL DEFAULT 0,
     customer_id TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -167,6 +168,7 @@ const userColumns = db.prepare("PRAGMA table_info(users)").all();
 const hasUserFirstName = userColumns.some((column) => column.name === "first_name");
 const hasUserLastName = userColumns.some((column) => column.name === "last_name");
 const hasUserPhone = userColumns.some((column) => column.name === "phone");
+const hasIsSuperAdmin = userColumns.some((column) => column.name === "is_super_admin");
 if (!hasUserFirstName) {
   db.exec("ALTER TABLE users ADD COLUMN first_name TEXT");
 }
@@ -175,6 +177,9 @@ if (!hasUserLastName) {
 }
 if (!hasUserPhone) {
   db.exec("ALTER TABLE users ADD COLUMN phone TEXT");
+}
+if (!hasIsSuperAdmin) {
+  db.exec("ALTER TABLE users ADD COLUMN is_super_admin INTEGER NOT NULL DEFAULT 0");
 }
 
 const adminsMissingNames = db
@@ -192,6 +197,19 @@ if (adminsMissingNames.length) {
     });
   });
   backfill(adminsMissingNames);
+}
+
+const hasSuperAdmin = db
+  .prepare("SELECT id FROM users WHERE role = 'admin' AND is_super_admin = 1 LIMIT 1")
+  .get();
+if (!hasSuperAdmin) {
+  const firstAdmin = db
+    .prepare("SELECT id FROM users WHERE role = 'admin' ORDER BY datetime(created_at) ASC LIMIT 1")
+    .get();
+  if (firstAdmin?.id) {
+    db.prepare("UPDATE users SET is_super_admin = 1, email_verified = 1, updated_at = datetime('now') WHERE id = ?")
+      .run(firstAdmin.id);
+  }
 }
 
 const existingCustomers = db.prepare("SELECT COUNT(*) AS total FROM customers").get().total;

@@ -29,7 +29,7 @@
         <button class="pill active auth-tab" data-tab="customer-login" type="button">Customer Login</button>
         <button class="pill auth-tab" data-tab="customer-signup" type="button">Customer Signup</button>
         <button class="pill auth-tab" data-tab="admin-login" type="button">Admin Login</button>
-        <button class="pill auth-tab" data-tab="admin-register" type="button">Admin Register</button>
+        <button class="pill auth-tab" data-tab="admin-register" type="button">Super Admin Setup</button>
       </div>
 
       <form id="customerLoginForm" class="admin-form auth-panel">
@@ -69,17 +69,13 @@
       </form>
 
       <form id="adminRegisterForm" class="admin-form auth-panel hidden">
+        <p class="small">Use this once with your unique setup key to create the first Super Admin.</p>
         <label>First Name <input type="text" id="adminRegFirstName" required /></label>
         <label>Last Name <input type="text" id="adminRegLastName" required /></label>
         <label>Email <input type="email" id="adminRegEmail" required /></label>
         <label>Password <input type="password" id="adminRegPassword" required /></label>
-        <button class="btn" type="submit">Register Admin</button>
-      </form>
-
-      <form id="adminVerifyOtpForm" class="admin-form auth-panel hidden">
-        <label>Admin Email <input type="email" id="adminVerifyEmail" required /></label>
-        <label>OTP <input type="text" id="adminVerifyOtp" required /></label>
-        <button class="btn" type="submit">Verify Admin OTP</button>
+        <label>Setup Key <input type="password" id="adminSetupKey" required /></label>
+        <button class="btn" type="submit">Create Super Admin</button>
       </form>
 
       <form id="forgotRequestForm" class="admin-form auth-panel">

@@ -482,7 +482,7 @@ function initAuthPage() {
   const signupStateEl = document.getElementById("signupState");
   const adminLoginForm = document.getElementById("adminLoginForm");
   const adminRegisterForm = document.getElementById("adminRegisterForm");
-  const adminVerifyOtpForm = document.getElementById("adminVerifyOtpForm");
+  const adminSetupKeyEl = document.getElementById("adminSetupKey");
   const forgotRequestForm = document.getElementById("forgotRequestForm");
   const forgotConfirmForm = document.getElementById("forgotConfirmForm");
 
@@ -582,8 +582,12 @@ function initAuthPage() {
           password: document.getElementById("loginPassword").value
         })
       });
+      if (result.user.role !== "customer") {
+        showMessage("This is customer login. Please use Admin Login for admin accounts.");
+        return;
+      }
       setAuthSession(result.token, result.user);
-      navigateTo(result.user.role === "admin" ? "admin.html" : "home.html");
+      navigateTo("home.html");
     } catch (error) {
       showMessage(error.message);
     }
@@ -622,6 +626,10 @@ function initAuthPage() {
           password: document.getElementById("adminLoginPassword").value
         })
       });
+      if (result.user.role !== "admin") {
+        showMessage("This is admin login. Please use Customer Login for customer accounts.");
+        return;
+      }
       setAuthSession(result.token, result.user);
       navigateTo("admin.html");
     } catch (error) {
@@ -638,27 +646,17 @@ function initAuthPage() {
           firstName: document.getElementById("adminRegFirstName").value.trim(),
           lastName: document.getElementById("adminRegLastName").value.trim(),
           email: document.getElementById("adminRegEmail").value.trim(),
-          password: document.getElementById("adminRegPassword").value
+          password: document.getElementById("adminRegPassword").value,
+          setupKey: adminSetupKeyEl?.value || ""
         })
       });
-      adminVerifyOtpForm.classList.remove("hidden");
-      showMessage(`${result.message} OTP: ${result.devOtp}`);
-    } catch (error) {
-      showMessage(error.message);
-    }
-  });
-
-  adminVerifyOtpForm.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    try {
-      const result = await request(API.adminVerifyOtp, {
-        method: "POST",
-        body: JSON.stringify({
-          email: document.getElementById("adminVerifyEmail").value.trim(),
-          otp: document.getElementById("adminVerifyOtp").value.trim()
-        })
-      });
-      showMessage(result.message);
+      if (!result?.token || !result?.user) {
+        showMessage(result?.message || "Super admin setup complete.");
+        return;
+      }
+      setAuthSession(result.token, result.user);
+      showMessage(result.message || "Super admin setup complete.");
+      navigateTo("admin.html");
     } catch (error) {
       showMessage(error.message);
     }
@@ -1181,6 +1179,14 @@ function initDineInPage() {
 function initAdminButtonSorting() {
   const grid = document.querySelector(".admin-function-grid");
   if (!grid) return;
+
+  requireRole("admin").then((me) => {
+    if (!me) return;
+    if (!me.isSuperAdmin) {
+      const createAdminBtn = grid.querySelector('a.admin-nav-btn[href="create-admin.html"]');
+      if (createAdminBtn) createAdminBtn.classList.add("hidden");
+    }
+  });
 
   const keyFor = (button) => String(button.getAttribute("href") || "").trim();
   const getButtons = () => Array.from(grid.querySelectorAll("a.admin-nav-btn[href]"));
@@ -2498,6 +2504,11 @@ function initCreateAdminPage() {
 
   requireRole("admin").then((me) => {
     if (!me) return;
+    if (!me.isSuperAdmin) {
+      alert("Only Super Admin can manage admins.");
+      navigateTo("admin.html");
+      return;
+    }
     fetchAdmins()
       .then(() => runSearch())
       .catch((error) => {
@@ -2573,6 +2584,11 @@ function initCreateAdminEditPage() {
 
   requireRole("admin").then((me) => {
     if (!me) return;
+    if (!me.isSuperAdmin) {
+      alert("Only Super Admin can manage admins.");
+      navigateTo("admin.html");
+      return;
+    }
     loadAdmin().catch((error) => {
       resultCard.classList.remove("hidden");
       resultMessage.textContent = error.message;

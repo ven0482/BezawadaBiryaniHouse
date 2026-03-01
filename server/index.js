@@ -29,6 +29,7 @@ const SMTP_USER = String(process.env.SMTP_USER || "").trim();
 const SMTP_PASS = String(process.env.SMTP_PASS || "").trim();
 const SMTP_FROM = String(process.env.SMTP_FROM || SMTP_USER || "").trim();
 const smtpConfigured = Boolean(SMTP_HOST && SMTP_PORT && SMTP_USER && SMTP_PASS && SMTP_FROM);
+const SUPER_ADMIN_SETUP_KEY = String(process.env.SUPER_ADMIN_SETUP_KEY || "").trim();
 
 const razorpayKeyId = String(process.env.RAZORPAY_KEY_ID || "").trim();
 const razorpayKeySecret = String(process.env.RAZORPAY_KEY_SECRET || "").trim();
@@ -282,6 +283,13 @@ function adminOnly(req, res, next) {
   next();
 }
 
+function superAdminOnly(req, res, next) {
+  if (!req.user || req.user.role !== "admin" || !req.user.is_super_admin) {
+    return res.status(403).json({ error: "Super admin access only." });
+  }
+  next();
+}
+
 function customerOnly(req, res, next) {
   if (!req.user || req.user.role !== "customer") {
     return res.status(403).json({ error: "Customer access only." });
@@ -362,9 +370,23 @@ app.post("/api/auth/admin/register", async (req, res) => {
   const password = String(req.body.password || "");
   const firstName = String(req.body.firstName || "").trim();
   const lastName = String(req.body.lastName || "").trim();
+  const setupKey = String(req.body.setupKey || "").trim();
 
-  if (!email || !password || !firstName || !lastName) {
+  if (!email || !password || !firstName || !lastName || !setupKey) {
     return res.status(400).json({ error: "All fields are required." });
+  }
+  if (!SUPER_ADMIN_SETUP_KEY) {
+    return res.status(500).json({ error: "SUPER_ADMIN_SETUP_KEY is not configured." });
+  }
+  if (setupKey !== SUPER_ADMIN_SETUP_KEY) {
+    return res.status(403).json({ error: "Invalid setup key." });
+  }
+
+  const existingSuperAdmin = db
+    .prepare("SELECT id FROM users WHERE role = 'admin' AND is_super_admin = 1 LIMIT 1")
+    .get();
+  if (existingSuperAdmin) {
+    return res.status(409).json({ error: "Super admin is already configured." });
   }
 
   const existing = db.prepare("SELECT id FROM users WHERE email = ?").get(email);
@@ -372,36 +394,19 @@ app.post("/api/auth/admin/register", async (req, res) => {
 
   const userId = `USR-${crypto.randomUUID()}`;
   db.prepare(
-    "INSERT INTO users (id, email, password_hash, role, email_verified, first_name, last_name, created_at, updated_at) VALUES (?, ?, ?, 'admin', 0, ?, ?, datetime('now'), datetime('now'))"
+    "INSERT INTO users (id, email, password_hash, role, email_verified, is_super_admin, first_name, last_name, created_at, updated_at) VALUES (?, ?, ?, 'admin', 1, 1, ?, ?, datetime('now'), datetime('now'))"
   ).run(userId, email, hashPassword(password), firstName, lastName);
 
-  const otp = makeOtp(userId, "verify_admin");
-  try {
-    const sent = await sendOtpEmail({
-      toEmail: email,
-      subject: `${BUSINESS_NAME} Admin Verification OTP`,
-      otp,
-      purposeLabel: "Use this OTP to verify your admin account."
-    });
-    if (!sent) {
-      console.log(`Admin OTP for ${email}: ${otp}`);
-      return res.status(201).json({
-        message: "Admin registered. SMTP not configured, OTP logged on server for development use.",
-        devOtp: otp
-      });
-    }
-    return res.status(201).json({ message: "Admin registered. OTP sent to your email." });
-  } catch (error) {
-    console.error("Failed to send admin OTP email:", error.message);
-    console.log(`Admin OTP for ${email}: ${otp}`);
-    return res.status(201).json({
-      message: "Admin registered, but email delivery failed. OTP logged on server for development use.",
-      devOtp: otp
-    });
-  }
+  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId);
+  const token = makeSession(user);
+  return res.status(201).json({
+    message: "Super admin setup completed.",
+    token,
+    user: { id: user.id, email: user.email, role: user.role, firstName, lastName, isSuperAdmin: true }
+  });
 });
 
-app.post("/api/admin/users", authMiddleware, adminOnly, async (req, res) => {
+app.post("/api/admin/users", authMiddleware, superAdminOnly, async (req, res) => {
   const email = String(req.body.email || "").trim().toLowerCase();
   const firstName = String(req.body.firstName || "").trim();
   const lastName = String(req.body.lastName || "").trim();
@@ -427,7 +432,7 @@ app.post("/api/admin/users", authMiddleware, adminOnly, async (req, res) => {
 
   const userId = `USR-${crypto.randomUUID()}`;
   db.prepare(
-    "INSERT INTO users (id, email, password_hash, role, email_verified, first_name, last_name, phone, created_at, updated_at) VALUES (?, ?, ?, 'admin', 1, ?, ?, ?, datetime('now'), datetime('now'))"
+    "INSERT INTO users (id, email, password_hash, role, email_verified, is_super_admin, first_name, last_name, phone, created_at, updated_at) VALUES (?, ?, ?, 'admin', 1, 0, ?, ?, ?, datetime('now'), datetime('now'))"
   ).run(userId, email, hashPassword(tempPassword), firstName, lastName, phone || null);
 
   let emailSent = false;
@@ -456,7 +461,7 @@ app.post("/api/admin/users", authMiddleware, adminOnly, async (req, res) => {
   });
 });
 
-app.get("/api/admin/users", authMiddleware, adminOnly, (_req, res) => {
+app.get("/api/admin/users", authMiddleware, superAdminOnly, (_req, res) => {
   const admins = db
     .prepare(
       `
@@ -467,6 +472,7 @@ app.get("/api/admin/users", authMiddleware, adminOnly, (_req, res) => {
         last_name,
         phone,
         email_verified,
+        is_super_admin,
         created_at,
         updated_at
       FROM users
@@ -482,17 +488,18 @@ app.get("/api/admin/users", authMiddleware, adminOnly, (_req, res) => {
       lastName: row.last_name || "",
       phone: row.phone || "",
       emailVerified: Boolean(row.email_verified),
+      isSuperAdmin: Boolean(row.is_super_admin),
       createdAt: row.created_at,
       updatedAt: row.updated_at
     }));
   return res.json(admins);
 });
 
-app.get("/api/admin/users/:id", authMiddleware, adminOnly, (req, res) => {
+app.get("/api/admin/users/:id", authMiddleware, superAdminOnly, (req, res) => {
   const admin = db
     .prepare(
       `
-      SELECT id, email, first_name, last_name, phone, email_verified, created_at, updated_at
+      SELECT id, email, first_name, last_name, phone, email_verified, is_super_admin, created_at, updated_at
       FROM users
       WHERE id = ? AND role = 'admin'
       LIMIT 1
@@ -507,12 +514,13 @@ app.get("/api/admin/users/:id", authMiddleware, adminOnly, (req, res) => {
     lastName: admin.last_name || "",
     phone: admin.phone || "",
     emailVerified: Boolean(admin.email_verified),
+    isSuperAdmin: Boolean(admin.is_super_admin),
     createdAt: admin.created_at,
     updatedAt: admin.updated_at
   });
 });
 
-app.patch("/api/admin/users/:id", authMiddleware, adminOnly, (req, res) => {
+app.patch("/api/admin/users/:id", authMiddleware, superAdminOnly, (req, res) => {
   const id = String(req.params.id || "").trim();
   const firstName = String(req.body.firstName || "").trim();
   const lastName = String(req.body.lastName || "").trim();
@@ -555,7 +563,7 @@ app.patch("/api/admin/users/:id", authMiddleware, adminOnly, (req, res) => {
 
   const updated = db
     .prepare(
-      "SELECT id, email, first_name, last_name, phone, email_verified, created_at, updated_at FROM users WHERE id = ?"
+      "SELECT id, email, first_name, last_name, phone, email_verified, is_super_admin, created_at, updated_at FROM users WHERE id = ?"
     )
     .get(id);
   return res.json({
@@ -566,6 +574,7 @@ app.patch("/api/admin/users/:id", authMiddleware, adminOnly, (req, res) => {
       lastName: updated.last_name || "",
       phone: updated.phone || "",
       emailVerified: Boolean(updated.email_verified),
+      isSuperAdmin: Boolean(updated.is_super_admin),
       createdAt: updated.created_at,
       updatedAt: updated.updated_at
     },
@@ -573,7 +582,7 @@ app.patch("/api/admin/users/:id", authMiddleware, adminOnly, (req, res) => {
   });
 });
 
-app.delete("/api/admin/users/:id", authMiddleware, adminOnly, (req, res) => {
+app.delete("/api/admin/users/:id", authMiddleware, superAdminOnly, (req, res) => {
   const id = String(req.params.id || "").trim();
   if (!id) return res.status(400).json({ error: "Admin ID is required." });
   if (id === req.user.id) return res.status(400).json({ error: "You cannot delete your own admin account." });
@@ -586,34 +595,8 @@ app.delete("/api/admin/users/:id", authMiddleware, adminOnly, (req, res) => {
   return res.json({ ok: true });
 });
 
-app.post("/api/auth/admin/verify-otp", (req, res) => {
-  const email = String(req.body.email || "").trim().toLowerCase();
-  const otp = String(req.body.otp || "").trim();
-  if (!email || !otp) return res.status(400).json({ error: "email and otp are required." });
-
-  const user = db.prepare("SELECT * FROM users WHERE email = ? AND role = 'admin'").get(email);
-  if (!user) return res.status(404).json({ error: "Admin user not found." });
-
-  const row = db
-    .prepare(
-      `
-      SELECT * FROM email_otps
-      WHERE user_id = ? AND purpose = 'verify_admin' AND used = 0
-      ORDER BY datetime(created_at) DESC
-      LIMIT 1
-    `
-    )
-    .get(user.id);
-  if (!row) return res.status(400).json({ error: "OTP not found." });
-  if (new Date(row.expires_at).getTime() < Date.now()) return res.status(400).json({ error: "OTP expired." });
-  if (row.otp !== otp) return res.status(400).json({ error: "Invalid OTP." });
-
-  db.transaction(() => {
-    db.prepare("UPDATE email_otps SET used = 1 WHERE id = ?").run(row.id);
-    db.prepare("UPDATE users SET email_verified = 1, updated_at = datetime('now') WHERE id = ?").run(user.id);
-  })();
-
-  res.json({ ok: true, message: "Admin email verified." });
+app.post("/api/auth/admin/verify-otp", (_req, res) => {
+  return res.status(410).json({ error: "OTP verification is disabled. Use super admin setup key flow." });
 });
 
 app.post("/api/auth/login", (req, res) => {
@@ -641,7 +624,17 @@ app.post("/api/auth/login", (req, res) => {
     firstName = parts[0] || "";
     lastName = parts.slice(1).join(" ");
   }
-  res.json({ token, user: { id: user.id, email: user.email, role: user.role, firstName, lastName } });
+  res.json({
+    token,
+    user: {
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      firstName,
+      lastName,
+      isSuperAdmin: Boolean(user.is_super_admin)
+    }
+  });
 });
 
 app.post("/api/auth/forgot-password/request", async (req, res) => {
@@ -721,7 +714,8 @@ app.get("/api/auth/me", authMiddleware, (req, res) => {
     return res.json({
       ...base,
       firstName: req.user.first_name || "",
-      lastName: req.user.last_name || ""
+      lastName: req.user.last_name || "",
+      isSuperAdmin: Boolean(req.user.is_super_admin)
     });
   }
   if (req.user.role === "customer" && req.user.customer_id) {
