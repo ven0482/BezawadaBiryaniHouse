@@ -55,6 +55,11 @@ npm run dev
    - `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` (optional, for OTP emails)
 5. Deploy and open the generated `https://<your-service>.onrender.com` URL.
 
+### Free Tier Note
+- The included `render.yaml` is configured for Render free tier.
+- On free tier, local SQLite storage is ephemeral (`/tmp/foodbiz.sqlite`) and can reset after restarts/redeploys.
+- For persistent production data, use Render Starter + persistent disk or move to a managed database.
+
 ## Connect Your Custom Domain
 1. Open your Render service -> **Settings** -> **Custom Domains**.
 2. Add your domain (example: `www.bezawadabiryani.com`).
