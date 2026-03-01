@@ -7,7 +7,14 @@ if (!fs.existsSync(dataDir)) {
   fs.mkdirSync(dataDir, { recursive: true });
 }
 
-const dbPath = path.join(dataDir, "foodbiz.sqlite");
+const configuredDbPath = String(process.env.SQLITE_PATH || "").trim();
+const dbPath = configuredDbPath
+  ? path.resolve(configuredDbPath)
+  : path.join(dataDir, "foodbiz.sqlite");
+const dbDir = path.dirname(dbPath);
+if (!fs.existsSync(dbDir)) {
+  fs.mkdirSync(dbDir, { recursive: true });
+}
 const db = new Database(dbPath);
 db.pragma("journal_mode = WAL");
 db.pragma("foreign_keys = ON");

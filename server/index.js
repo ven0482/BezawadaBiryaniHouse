@@ -4,6 +4,8 @@ const express = require("express");
 const cors = require("cors");
 const dotenv = require("dotenv");
 const Razorpay = require("razorpay");
+
+dotenv.config();
 const db = require("./db");
 
 let nodemailer = null;
@@ -14,11 +16,9 @@ try {
   nodemailer = null;
 }
 
-dotenv.config();
-
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
-const HOST = String(process.env.HOST || "").trim() || "127.0.0.1";
+const HOST = String(process.env.HOST || "").trim() || "0.0.0.0";
 const DELIVERY_FEE = Number(process.env.DELIVERY_FEE || 40);
 const BUSINESS_UPI_ID = process.env.BUSINESS_UPI_ID || "spiceroute@upi";
 const BUSINESS_NAME = process.env.BUSINESS_NAME || "Bezawada Biryani House";

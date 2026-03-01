@@ -39,6 +39,28 @@ npm run dev
 - Shop: [http://localhost:3000/shop.html](http://localhost:3000/shop.html)
 - Admin: [http://localhost:3000/admin.html](http://localhost:3000/admin.html)
 
+## Deploy To A Website (Render)
+1. Push this project to GitHub.
+2. In Render, create a **Blueprint** service and select your repo.
+3. Render will detect `render.yaml` and configure:
+   - `npm ci` build
+   - `npm start` run command
+   - Persistent disk at `/var/data` for SQLite
+4. In Render Environment Variables, set production secrets:
+   - `RAZORPAY_KEY_ID`
+   - `RAZORPAY_KEY_SECRET`
+   - `BUSINESS_UPI_ID`
+   - `BUSINESS_NAME`
+   - `DELIVERY_FEE`
+   - `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` (optional, for OTP emails)
+5. Deploy and open the generated `https://<your-service>.onrender.com` URL.
+
+## Connect Your Custom Domain
+1. Open your Render service -> **Settings** -> **Custom Domains**.
+2. Add your domain (example: `www.bezawadabiryani.com`).
+3. In your DNS provider, create the CNAME/A records shown by Render.
+4. Wait for DNS + SSL to finish provisioning, then open your domain URL.
+
 ## Order Status Logic
 - `PENDING`: Order created, payment initiated/awaited
 - `OPEN`: Paid/confirmed order, active for fulfillment
@@ -47,4 +69,4 @@ npm run dev
 ## Notes
 - Inventory updates are enforced on the backend when order intent is created.
 - Seed products are inserted on first run.
-- Database path: `data/foodbiz.sqlite`
+- Database path defaults to `data/foodbiz.sqlite` and can be overridden with `SQLITE_PATH`.
