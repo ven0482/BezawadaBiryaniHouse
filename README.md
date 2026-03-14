@@ -13,6 +13,10 @@
   - View all orders sorted by latest first
   - Filter by `Open`, `Pending`, `Closed`
   - Update order status from admin
+- Super admin tools
+  - One-time super admin setup flow
+  - Create and manage admin users
+  - Configure CCTV streams and view live feeds in the web app
 
 ## Tech Stack
 - Frontend: HTML/CSS/Vanilla JS
@@ -76,3 +80,4 @@ npm run dev
 - Inventory updates are enforced on the backend when order intent is created.
 - Seed products are inserted on first run.
 - Database path defaults to `data/foodbiz.sqlite` and can be overridden with `SQLITE_PATH`.
+- CCTV monitoring expects a browser-compatible source URL such as an HTTPS HLS playlist, vendor embed page, or image/MJPEG endpoint. Raw RTSP streams need a gateway or vendor web viewer before they can be embedded.

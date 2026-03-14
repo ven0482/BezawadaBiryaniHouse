@@ -5,7 +5,7 @@ const cors = require("cors");
 const dotenv = require("dotenv");
 const Razorpay = require("razorpay");
 
-dotenv.config();
+dotenv.config({ path: path.join(__dirname, "..", ".env") });
 const db = require("./db");
 
 let nodemailer = null;
@@ -30,6 +30,7 @@ const SMTP_PASS = String(process.env.SMTP_PASS || "").trim();
 const SMTP_FROM = String(process.env.SMTP_FROM || SMTP_USER || "").trim();
 const smtpConfigured = Boolean(SMTP_HOST && SMTP_PORT && SMTP_USER && SMTP_PASS && SMTP_FROM);
 const SUPER_ADMIN_SETUP_KEY = String(process.env.SUPER_ADMIN_SETUP_KEY || "").trim();
+const isProduction = String(process.env.NODE_ENV || "").trim().toLowerCase() === "production";
 
 const razorpayKeyId = String(process.env.RAZORPAY_KEY_ID || "").trim();
 const razorpayKeySecret = String(process.env.RAZORPAY_KEY_SECRET || "").trim();
@@ -290,6 +291,43 @@ function superAdminOnly(req, res, next) {
   next();
 }
 
+const CCTV_STREAM_TYPES = new Set(["iframe", "hls", "image"]);
+
+function normalizeCctvStreamType(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  return CCTV_STREAM_TYPES.has(normalized) ? normalized : "";
+}
+
+function normalizeCctvUrl(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  // Auto-prepend https:// if no scheme provided (e.g. bare IP addresses)
+  const withScheme = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+  try {
+    const parsed = new URL(withScheme);
+    if (!["http:", "https:"].includes(parsed.protocol)) return "";
+    return parsed.toString();
+  } catch {
+    // Not parseable as a URL at all — store as-is so user data is not lost
+    return raw;
+  }
+}
+
+function mapCctvStream(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    name: row.name,
+    location: row.location || "",
+    embedUrl: row.embed_url,
+    viewLink: row.view_link || "",
+    streamType: row.stream_type,
+    isActive: Boolean(row.is_active),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+
 function customerOnly(req, res, next) {
   if (!req.user || req.user.role !== "customer") {
     return res.status(403).json({ error: "Customer access only." });
@@ -376,7 +414,9 @@ app.post("/api/auth/admin/register", async (req, res) => {
     return res.status(400).json({ error: "All fields are required." });
   }
   if (!SUPER_ADMIN_SETUP_KEY) {
-    return res.status(500).json({ error: "SUPER_ADMIN_SETUP_KEY is not configured." });
+    return res.status(500).json({
+      error: "SUPER_ADMIN_SETUP_KEY is not configured on the server. Add it to the server environment or .env file, then restart the server."
+    });
   }
   if (setupKey !== SUPER_ADMIN_SETUP_KEY) {
     return res.status(403).json({ error: "Invalid setup key." });
@@ -595,6 +635,88 @@ app.delete("/api/admin/users/:id", authMiddleware, superAdminOnly, (req, res) =>
   return res.json({ ok: true });
 });
 
+app.get("/api/admin/cctv-streams", authMiddleware, superAdminOnly, (_req, res) => {
+  const streams = db
+    .prepare(
+      `
+      SELECT id, name, location, embed_url, view_link, stream_type, is_active, created_at, updated_at
+      FROM cctv_streams
+      ORDER BY is_active DESC, datetime(updated_at) DESC, datetime(created_at) DESC
+    `
+    )
+    .all()
+    .map(mapCctvStream);
+  return res.json(streams);
+});
+
+app.post("/api/admin/cctv-streams", authMiddleware, superAdminOnly, (req, res) => {
+  const name = String(req.body.name || "").trim();
+  const location = String(req.body.location || "").trim();
+  const embedUrl = normalizeCctvUrl(req.body.embedUrl);
+  const viewLink = normalizeCctvUrl(req.body.viewLink);
+  const streamType = normalizeCctvStreamType(req.body.streamType);
+  const isActive = req.body.isActive === undefined ? true : Boolean(req.body.isActive);
+
+  if (!name || !embedUrl || !streamType) {
+    return res.status(400).json({
+      error: "name, streamType and a valid http/https embedUrl are required. Use a browser-compatible viewer URL, not raw RTSP."
+    });
+  }
+
+  const id = `CTV-${crypto.randomUUID()}`;
+  db.prepare(
+    `
+    INSERT INTO cctv_streams (id, name, location, embed_url, view_link, stream_type, is_active, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+  `
+  ).run(id, name, location || null, embedUrl, viewLink || null, streamType, isActive ? 1 : 0);
+
+  const created = db.prepare("SELECT * FROM cctv_streams WHERE id = ?").get(id);
+  return res.status(201).json({ stream: mapCctvStream(created) });
+});
+
+app.patch("/api/admin/cctv-streams/:id", authMiddleware, superAdminOnly, (req, res) => {
+  const id = String(req.params.id || "").trim();
+  const name = String(req.body.name || "").trim();
+  const location = String(req.body.location || "").trim();
+  const embedUrl = normalizeCctvUrl(req.body.embedUrl);
+  const viewLink = normalizeCctvUrl(req.body.viewLink);
+  const streamType = normalizeCctvStreamType(req.body.streamType);
+  const isActive = Boolean(req.body.isActive);
+
+  if (!id) return res.status(400).json({ error: "CCTV stream ID is required." });
+  if (!name || !embedUrl || !streamType) {
+    return res.status(400).json({
+      error: "name, streamType and a valid http/https embedUrl are required. Use a browser-compatible viewer URL, not raw RTSP."
+    });
+  }
+
+  const existing = db.prepare("SELECT id FROM cctv_streams WHERE id = ?").get(id);
+  if (!existing) return res.status(404).json({ error: "CCTV stream not found." });
+
+  db.prepare(
+    `
+    UPDATE cctv_streams
+    SET name = ?, location = ?, embed_url = ?, view_link = ?, stream_type = ?, is_active = ?, updated_at = datetime('now')
+    WHERE id = ?
+  `
+  ).run(name, location || null, embedUrl, viewLink || null, streamType, isActive ? 1 : 0, id);
+
+  const updated = db.prepare("SELECT * FROM cctv_streams WHERE id = ?").get(id);
+  return res.json({ stream: mapCctvStream(updated) });
+});
+
+app.delete("/api/admin/cctv-streams/:id", authMiddleware, superAdminOnly, (req, res) => {
+  const id = String(req.params.id || "").trim();
+  if (!id) return res.status(400).json({ error: "CCTV stream ID is required." });
+
+  const existing = db.prepare("SELECT id FROM cctv_streams WHERE id = ?").get(id);
+  if (!existing) return res.status(404).json({ error: "CCTV stream not found." });
+
+  db.prepare("DELETE FROM cctv_streams WHERE id = ?").run(id);
+  return res.json({ ok: true });
+});
+
 app.post("/api/auth/admin/verify-otp", (_req, res) => {
   return res.status(410).json({ error: "OTP verification is disabled. Use super admin setup key flow." });
 });
@@ -643,6 +765,18 @@ app.post("/api/auth/forgot-password/request", async (req, res) => {
   const user = db.prepare("SELECT * FROM users WHERE email = ?").get(email);
   if (!user) return res.json({ ok: true, message: "If email exists, OTP is sent." });
   const otp = makeOtp(user.id, "reset_password");
+
+  function fallbackResetMessage(baseMessage) {
+    if (isProduction) {
+      return { ok: true, message: "If email exists, OTP is sent." };
+    }
+    return {
+      ok: true,
+      message: `${baseMessage} OTP logged on server for development use.`,
+      devOtp: otp
+    };
+  }
+
   try {
     const sent = await sendOtpEmail({
       toEmail: email,
@@ -652,21 +786,13 @@ app.post("/api/auth/forgot-password/request", async (req, res) => {
     });
     if (!sent) {
       console.log(`Password reset OTP for ${email}: ${otp}`);
-      return res.json({
-        ok: true,
-        message: "SMTP not configured, OTP logged on server for development use.",
-        devOtp: otp
-      });
+      return res.json(fallbackResetMessage("SMTP not configured."));
     }
     return res.json({ ok: true, message: "OTP sent to your email." });
   } catch (error) {
     console.error("Failed to send password reset OTP email:", error.message);
     console.log(`Password reset OTP for ${email}: ${otp}`);
-    return res.json({
-      ok: true,
-      message: "Email delivery failed, OTP logged on server for development use.",
-      devOtp: otp
-    });
+    return res.json(fallbackResetMessage("Email delivery failed."));
   }
 });
 

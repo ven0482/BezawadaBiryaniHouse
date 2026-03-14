@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CCTV Monitor | Bezawada Biryani House</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Manrope:wght@400;500;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/styles.css" />
+</head>
+<body>
+  <header class="site-header">
+    <nav class="nav">
+      <a class="logo" href="admin.html"><img src="assets/bezawada-biryani-house-logo.svg" alt="Bezawada Biryani House" /></a>
+      <div class="nav-links">
+        <a href="admin.html">Home</a>
+        <button class="btn btn-outline btn-sm" id="logoutBtn" type="button">Logout</button>
+      </div>
+    </nav>
+  </header>
+
+  <main class="admin-layout">
+    <section class="card">
+      <div class="section-head section-with-back">
+        <div>
+          <h1>CCTV Monitor</h1>
+          <p class="small" id="cctvAccessNote">Super admin live view and stream configuration.</p>
+        </div>
+        <a class="btn btn-outline btn-sm" href="admin.html">Back</a>
+      </div>
+
+      <p class="cctv-help">Use a browser-compatible CCTV source: vendor embed page in iframe mode, HTTPS HLS playlist in HLS mode, or MJPEG/still image URL in image mode. Raw RTSP will not play directly in a browser.</p>
+
+      <form class="admin-form" id="cctvStreamForm">
+        <input id="cctvStreamId" type="hidden" />
+        <div class="cctv-form-grid">
+          <label>
+            Camera Name
+            <input type="text" id="cctvName" placeholder="Front Entrance" required />
+          </label>
+          <label>
+            Location
+            <input type="text" id="cctvLocation" placeholder="Main gate" />
+          </label>
+          <label>
+            Stream Type
+            <select id="cctvStreamType" required>
+              <option value="iframe">Iframe Embed</option>
+              <option value="hls">HLS Stream</option>
+              <option value="image">Image / MJPEG</option>
+            </select>
+          </label>
+          <label>
+            Live URL
+            <input type="text" id="cctvEmbedUrl" placeholder="https://..." required />
+          </label>
+          <label class="full-span">
+            External View Link <span class="cctv-label-hint">(optional — opens camera's own web page in a new tab)</span>
+            <input type="text" id="cctvViewLink" placeholder="https://camera-ip/view" />
+          </label>
+          <label class="checkbox full-span">
+            <input type="checkbox" id="cctvIsActive" checked />
+            Stream active and visible in monitor
+          </label>
+        </div>
+        <div class="form-actions">
+          <button class="btn" type="submit" id="cctvSubmitBtn">Save Stream</button>
+          <button class="btn btn-outline" type="button" id="cctvResetBtn">Clear</button>
+        </div>
+      </form>
+
+      <p class="small" id="cctvFormMessage"></p>
+    </section>
+
+    <section class="card">
+      <div class="section-head section-with-back">
+        <h2>Live Feeds</h2>
+        <button class="btn btn-outline btn-sm" id="cctvRefreshBtn" type="button">Refresh</button>
+      </div>
+      <div class="cctv-grid" id="cctvStreamsGrid"></div>
+      <div class="cctv-empty hidden" id="cctvEmptyState">
+        <p>No CCTV streams configured yet.</p>
+      </div>
+    </section>
+  </main>
+
+  <section class="cctv-modal hidden" id="cctvModal" aria-hidden="true">
+    <div class="cctv-modal-backdrop" id="cctvModalBackdrop"></div>
+    <div class="cctv-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="cctvModalTitle">
+      <div class="section-head section-with-back">
+        <div>
+          <h2 id="cctvModalTitle">Live Stream</h2>
+          <p class="small" id="cctvModalSubtitle"></p>
+        </div>
+        <div class="cctv-modal-actions">
+          <label class="cctv-inline-control">
+            Quality
+            <select id="cctvQualitySelect">
+              <option value="auto">Auto</option>
+            </select>
+          </label>
+          <label class="cctv-inline-control">
+            Save Period
+            <select id="cctvRecordDuration">
+              <option value="30">30 Seconds</option>
+              <option value="60">1 Minute</option>
+              <option value="120">2 Minutes</option>
+              <option value="180">3 Minutes</option>
+              <option value="300" selected>5 Minutes</option>
+              <option value="600">10 Minutes</option>
+              <option value="900">15 Minutes</option>
+              <option value="1800">30 Minutes</option>
+            </select>
+          </label>
+          <button class="btn btn-outline btn-sm" id="cctvFullscreenBtn" type="button">Fullscreen</button>
+          <button class="btn btn-sm" id="cctvRecordBtn" type="button">Save Footage</button>
+          <button class="btn btn-outline btn-sm" id="cctvCloseBtn" type="button">Close</button>
+        </div>
+      </div>
+      <p class="small" id="cctvModalStatus">Expanded live view is optimized for high-quality monitoring.</p>
+      <div class="cctv-modal-stage" id="cctvModalStage"></div>
+    </div>
+  </section>
+
+  <!-- Background recording banner — shown when user closes modal while recording is active -->
+  <div class="cctv-bg-record-banner hidden" id="cctvBgRecordBanner" role="status" aria-live="polite">
+    <span class="cctv-bg-rec-dot" aria-hidden="true"></span>
+    <span id="cctvBgRecordLabel">Recording in background…</span>
+    <button class="btn btn-sm" type="button" id="cctvBgRecordStop">Stop &amp; Save Now</button>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.18/dist/hls.min.js"></script>
+  <script src="assets/app.js"></script>
+</body>
+</html>

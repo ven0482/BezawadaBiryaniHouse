@@ -395,6 +395,10 @@ body[data-theme="night"] .logo img {
   background: #8f2f2f;
 }
 
+.admin-function-grid .admin-nav-btn[href="cctv.html"] {
+  background: #0f6b78;
+}
+
 .admin-function-grid .admin-nav-btn:hover {
   filter: brightness(1.06);
 }
@@ -1133,6 +1137,272 @@ body[data-theme="night"] .table-tile-link .pill.active {
   gap: 0.75rem;
 }
 
+.cctv-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.8rem;
+}
+
+.cctv-form-grid .full-span {
+  grid-column: 1 / -1;
+}
+
+.cctv-help {
+  margin: 0.4rem 0 0.8rem;
+  color: var(--muted);
+}
+
+.cctv-label-hint {
+  font-weight: 400;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.cctv-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.9rem;
+}
+
+.cctv-card {
+  border: 1px solid var(--border);
+  border-radius: 0.9rem;
+  background: #fff;
+  padding: 0.9rem;
+  display: grid;
+  gap: 0.8rem;
+}
+
+.cctv-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.8rem;
+}
+
+.cctv-card-head h3 {
+  margin: 0;
+}
+
+.cctv-card-head p {
+  margin: 0.25rem 0 0;
+  color: var(--muted);
+}
+
+.cctv-card-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.cctv-card-actions .btn {
+  flex: 1 1 0;
+}
+
+.cctv-preview {
+  min-height: 260px;
+  border-radius: 0.8rem;
+  overflow: hidden;
+  background: linear-gradient(180deg, #14212d 0%, #091118 100%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #f3f7fa;
+}
+
+.cctv-preview video,
+.cctv-preview iframe,
+.cctv-preview img {
+  width: 100%;
+  min-height: 260px;
+  height: 100%;
+  display: block;
+  border: 0;
+  object-fit: cover;
+}
+
+.cctv-meta {
+  display: flex;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.cctv-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.28rem 0.6rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: #f5efe8;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.cctv-chip[data-type="hls"] {
+  background: #eaf4ff;
+  border-color: #aecbf2;
+  color: #165286;
+}
+
+.cctv-chip[data-type="iframe"] {
+  background: #edf9f1;
+  border-color: #a9d3b4;
+  color: #266c44;
+}
+
+.cctv-chip[data-type="image"] {
+  background: #fff5e8;
+  border-color: #e8c28f;
+  color: #8a4b1f;
+}
+
+.cctv-chip.inactive {
+  background: #fdeeee;
+  border-color: #efc2c2;
+  color: #8f2f2f;
+}
+
+.cctv-empty {
+  border: 1px dashed var(--border);
+  border-radius: 0.9rem;
+  padding: 1rem;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.65);
+}
+
+.cctv-error {
+  padding: 1rem;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.cctv-quality-note {
+  color: #dcefff;
+  text-align: center;
+  padding: 1rem;
+  font-weight: 700;
+}
+
+.cctv-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+}
+
+.cctv-modal.hidden {
+  display: none;
+}
+
+.cctv-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(3, 10, 17, 0.76);
+  backdrop-filter: blur(6px);
+}
+
+.cctv-modal-dialog {
+  position: relative;
+  width: min(1400px, 100%);
+  max-height: calc(100vh - 2rem);
+  overflow: auto;
+  border-radius: 1rem;
+  background: #fdf9f4;
+  border: 1px solid rgba(55, 37, 11, 0.16);
+  box-shadow: 0 28px 60px rgba(5, 13, 21, 0.35);
+  padding: 1rem;
+}
+
+.cctv-modal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: end;
+}
+
+.cctv-inline-control {
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.8rem;
+  min-width: 140px;
+}
+
+.cctv-inline-control select {
+  min-width: 140px;
+}
+
+.cctv-modal-stage {
+  margin-top: 0.75rem;
+  min-height: 72vh;
+  border-radius: 1rem;
+  overflow: hidden;
+  background: linear-gradient(180deg, #0d1720 0%, #04090f 100%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.cctv-modal-stage .cctv-preview {
+  min-height: 72vh;
+  border-radius: 0;
+  border: 0;
+}
+
+.cctv-modal-stage video,
+.cctv-modal-stage iframe,
+.cctv-modal-stage img {
+  min-height: 72vh;
+  object-fit: contain;
+  background: #02070c;
+}
+
+body.modal-open {
+  overflow: hidden;
+}
+
+/* Background recording banner */
+.cctv-bg-record-banner {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem 1.5rem;
+  background: #120500;
+  color: #fff;
+  border-top: 2px solid #e53935;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.cctv-bg-record-banner.hidden {
+  display: none;
+}
+
+.cctv-bg-record-banner #cctvBgRecordLabel {
+  flex: 1;
+}
+
+.cctv-bg-rec-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #e53935;
+  flex-shrink: 0;
+  animation: cctv-rec-blink 1.2s step-start infinite;
+}
+
+@keyframes cctv-rec-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
 @media (max-width: 920px) {
   .nav {
     flex-wrap: wrap;
@@ -1225,6 +1495,25 @@ body[data-theme="night"] .table-tile-link .pill.active {
 
   .reports-filters-grid {
     grid-template-columns: 1fr;
+  }
+
+  .cctv-grid,
+  .cctv-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .cctv-modal-dialog {
+    padding: 0.85rem;
+  }
+
+  .cctv-modal-actions {
+    width: 100%;
+  }
+
+  .cctv-inline-control,
+  .cctv-inline-control select,
+  .cctv-modal-actions .btn {
+    width: 100%;
   }
 
   .head-actions {
