@@ -110,7 +110,26 @@ db.exec(`
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
   );
+
+  CREATE TABLE IF NOT EXISTS cctv_streams (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    location TEXT,
+    embed_url TEXT NOT NULL,
+    stream_type TEXT NOT NULL CHECK(stream_type IN ('iframe', 'hls', 'image')),
+    is_active INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
 `);
+
+const hasCctvViewLink = db
+  .prepare("PRAGMA table_info(cctv_streams)")
+  .all()
+  .some((col) => col.name === "view_link");
+if (!hasCctvViewLink) {
+  db.exec("ALTER TABLE cctv_streams ADD COLUMN view_link TEXT");
+}
 
 const hasCustomerIdColumn = db
   .prepare("PRAGMA table_info(orders)")

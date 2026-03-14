@@ -102,6 +102,8 @@ const API = {
   logout: "/api/auth/logout",
   profile: "/api/auth/profile",
   adminProfile: "/api/auth/admin/profile",
+  cctvStreams: "/api/admin/cctv-streams",
+  cctvStreamById: (id) => `/api/admin/cctv-streams/${encodeURIComponent(id)}`,
   myOrders: "/api/my/orders",
   products: "/api/products",
   orders: "/api/orders",
@@ -448,6 +450,7 @@ function initActiveNavLinks() {
     "reports.html": "admin.html",
     "admin-profile.html": "admin-profile.html",
     "admin.html": "admin.html",
+    "cctv.html": "admin.html",
     "create-admin.html": "admin.html",
     "create-admin-edit.html": "admin.html",
     "dine-in.html": "dine-in.html",
@@ -669,7 +672,7 @@ function initAuthPage() {
         method: "POST",
         body: JSON.stringify({ email: document.getElementById("forgotEmail").value.trim() })
       });
-      showMessage(`${result.message} OTP: ${result.devOtp || ""}`);
+      showMessage(result.message);
     } catch (error) {
       showMessage(error.message);
     }
@@ -690,6 +693,19 @@ function initAuthPage() {
     } catch (error) {
       showMessage(error.message);
     }
+  });
+}
+
+function initAdminLandingPage() {
+  const createAdminNavBtn = document.getElementById("createAdminNavBtn");
+  const cctvNavBtn = document.getElementById("cctvNavBtn");
+  if (!createAdminNavBtn && !cctvNavBtn) return;
+
+  requireRole("admin").then((me) => {
+    if (!me) return;
+    const isSuperAdmin = Boolean(me.isSuperAdmin);
+    if (createAdminNavBtn) createAdminNavBtn.classList.toggle("hidden", !isSuperAdmin);
+    if (cctvNavBtn) cctvNavBtn.classList.toggle("hidden", !isSuperAdmin);
   });
 }
 
@@ -3022,6 +3038,654 @@ function initAdminDashboardPage() {
   });
 }
 
+function initCctvPage() {
+  const grid = document.getElementById("cctvStreamsGrid");
+  if (!grid) return;
+
+  const form = document.getElementById("cctvStreamForm");
+  const idEl = document.getElementById("cctvStreamId");
+  const nameEl = document.getElementById("cctvName");
+  const locationEl = document.getElementById("cctvLocation");
+  const streamTypeEl = document.getElementById("cctvStreamType");
+  const embedUrlEl = document.getElementById("cctvEmbedUrl");
+  const viewLinkEl = document.getElementById("cctvViewLink");
+  const isActiveEl = document.getElementById("cctvIsActive");
+  const resetBtn = document.getElementById("cctvResetBtn");
+  const refreshBtn = document.getElementById("cctvRefreshBtn");
+  const messageEl = document.getElementById("cctvFormMessage");
+  const emptyStateEl = document.getElementById("cctvEmptyState");
+  const accessNoteEl = document.getElementById("cctvAccessNote");
+  const modalEl = document.getElementById("cctvModal");
+  const modalBackdropEl = document.getElementById("cctvModalBackdrop");
+  const modalStageEl = document.getElementById("cctvModalStage");
+  const modalTitleEl = document.getElementById("cctvModalTitle");
+  const modalSubtitleEl = document.getElementById("cctvModalSubtitle");
+  const modalStatusEl = document.getElementById("cctvModalStatus");
+  const modalQualitySelect = document.getElementById("cctvQualitySelect");
+  const modalRecordDurationEl = document.getElementById("cctvRecordDuration");
+  const modalRecordBtn = document.getElementById("cctvRecordBtn");
+  const modalFullscreenBtn = document.getElementById("cctvFullscreenBtn");
+  const modalCloseBtn = document.getElementById("cctvCloseBtn");
+  const bgRecordBannerEl = document.getElementById("cctvBgRecordBanner");
+  const bgRecordLabelEl = document.getElementById("cctvBgRecordLabel");
+  const bgRecordStopBtn = document.getElementById("cctvBgRecordStop");
+
+  let streams = [];
+  let streamControllers = [];
+  let modalController = null;
+  let expandedStream = null;
+  let recordingSession = null;
+  let modalClosedDuringRecord = false;
+
+  function destroyController(controller) {
+    if (!controller) return;
+    try {
+      controller.destroy?.();
+    } catch {}
+  }
+
+  function clearPlayers() {
+    streamControllers.forEach((controller) => {
+      try {
+        controller.destroy?.();
+      } catch {}
+    });
+    streamControllers = [];
+  }
+
+  function setMessage(text, isError = false) {
+    if (!messageEl) return;
+    messageEl.textContent = text;
+    messageEl.classList.toggle("success", Boolean(text) && !isError);
+  }
+
+  function setModalStatus(text) {
+    if (!modalStatusEl) return;
+    modalStatusEl.textContent = text;
+  }
+
+  function resetForm() {
+    if (!form) return;
+    form.reset();
+    if (idEl) idEl.value = "";
+    if (streamTypeEl) streamTypeEl.value = "iframe";
+    if (isActiveEl) isActiveEl.checked = true;
+  }
+
+  function createChip(text, type, inactive = false) {
+    const chip = document.createElement("span");
+    chip.className = `cctv-chip${inactive ? " inactive" : ""}`;
+    if (type) chip.dataset.type = type;
+    chip.textContent = text;
+    return chip;
+  }
+
+  function getVideoCaptureStream(video) {
+    if (!video) return null;
+    if (typeof video.captureStream === "function") return video.captureStream();
+    if (typeof video.mozCaptureStream === "function") return video.mozCaptureStream();
+    return null;
+  }
+
+  function safePlay(media) {
+    if (!media || typeof media.play !== "function") return;
+    const playPromise = media.play();
+    if (playPromise && typeof playPromise.catch === "function") {
+      playPromise.catch(() => {});
+    }
+  }
+
+  function updateModalControls() {
+    const qualityOptions = modalController?.qualityOptions || [{ value: "auto", label: "Auto" }];
+    if (modalQualitySelect) {
+      modalQualitySelect.innerHTML = qualityOptions
+        .map((option) => `<option value="${option.value}">${option.label}</option>`)
+        .join("");
+      modalQualitySelect.disabled = !modalController?.supportsManualQuality;
+      modalQualitySelect.value = String(modalController?.selectedQuality || "auto");
+    }
+
+    if (modalRecordBtn) {
+      const canRecord = Boolean(modalController?.canRecord && modalController?.video);
+      modalRecordBtn.disabled = !canRecord;
+      if (!canRecord) {
+        modalRecordBtn.title = "Footage saving is available for live video streams only.";
+      } else {
+        modalRecordBtn.removeAttribute("title");
+      }
+      modalRecordBtn.textContent = recordingSession ? "Stop Saving" : "Save Footage";
+    }
+  }
+
+  function formatRecordDateTime() {
+    const now = new Date();
+    const pad = (n) => String(n).padStart(2, "0");
+    return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}`;
+  }
+
+  function showBgBanner(label) {
+    if (bgRecordLabelEl) bgRecordLabelEl.textContent = label;
+    bgRecordBannerEl?.classList.remove("hidden");
+  }
+
+  function hideBgBanner() {
+    bgRecordBannerEl?.classList.add("hidden");
+  }
+
+  function teardownModal() {
+    destroyController(modalController);
+    modalController = null;
+    expandedStream = null;
+    modalClosedDuringRecord = false;
+    if (modalStageEl) modalStageEl.innerHTML = "";
+    modalEl?.classList.add("hidden");
+    modalEl?.setAttribute("aria-hidden", "true");
+    document.body.classList.remove("modal-open");
+    updateModalControls();
+  }
+
+  function closeModal() {
+    // If recording is active, keep controller alive and continue in background
+    if (recordingSession) {
+      modalClosedDuringRecord = true;
+      if (modalStageEl) modalStageEl.innerHTML = "";
+      modalEl?.classList.add("hidden");
+      modalEl?.setAttribute("aria-hidden", "true");
+      document.body.classList.remove("modal-open");
+      const camName = expandedStream?.name || "camera";
+      showBgBanner(`Recording "${camName}" in background — will auto-save when done.`);
+      return;
+    }
+    teardownModal();
+  }
+
+  function openFullscreen() {
+    const target = modalStageEl;
+    if (!target) return;
+    if (typeof target.requestFullscreen === "function") {
+      target.requestFullscreen().catch(() => {});
+    }
+  }
+
+  function createHlsQualityOptions(levels) {
+    return [
+      { value: "auto", label: "Auto (Adaptive)" },
+      ...levels.map((level, index) => {
+        const height = level?.height ? `${level.height}p` : `Level ${index + 1}`;
+        const bitrate = level?.bitrate ? ` ${(level.bitrate / 1000000).toFixed(1)} Mbps` : "";
+        return { value: String(index), label: `${height}${bitrate}` };
+      })
+    ];
+  }
+
+  function mountStream(container, stream, options = {}) {
+    container.innerHTML = "";
+
+    const controller = {
+      stream,
+      video: null,
+      canRecord: false,
+      supportsManualQuality: false,
+      qualityOptions: [{ value: "auto", label: "Auto" }],
+      selectedQuality: "auto",
+      setQuality: () => {},
+      destroy: () => {}
+    };
+
+    if (!stream.isActive) {
+      const note = document.createElement("div");
+      note.className = "cctv-error";
+      note.textContent = "This stream is inactive. Activate it to resume live monitoring.";
+      container.appendChild(note);
+      return controller;
+    }
+
+    if (stream.streamType === "iframe") {
+      const frame = document.createElement("iframe");
+      frame.src = stream.embedUrl;
+      frame.loading = options.expanded ? "eager" : "lazy";
+      frame.referrerPolicy = "strict-origin-when-cross-origin";
+      frame.allow = "autoplay; fullscreen; picture-in-picture";
+      frame.title = `${stream.name} live view`;
+      container.appendChild(frame);
+      if (options.expanded) {
+        const note = document.createElement("div");
+        note.className = "cctv-quality-note";
+        note.textContent = "Iframe feeds stay live in the expanded window, but recording and manual quality control depend on the CCTV vendor page.";
+        container.appendChild(note);
+      }
+      return controller;
+    }
+
+    if (stream.streamType === "image") {
+      const image = document.createElement("img");
+      image.src = stream.embedUrl;
+      image.alt = `${stream.name} live view`;
+      image.loading = options.expanded ? "eager" : "lazy";
+      image.referrerPolicy = "strict-origin-when-cross-origin";
+      container.appendChild(image);
+      return controller;
+    }
+
+    if (stream.streamType !== "hls") {
+      const fallback = document.createElement("div");
+      fallback.className = "cctv-error";
+      fallback.textContent = "Unsupported stream type.";
+      container.appendChild(fallback);
+      return controller;
+    }
+
+    const video = document.createElement("video");
+    video.controls = true;
+    video.autoplay = true;
+    video.muted = true;
+    video.playsInline = true;
+    video.preload = options.expanded ? "auto" : "metadata";
+    controller.video = video;
+    controller.canRecord = Boolean(typeof video.captureStream === "function" || typeof video.mozCaptureStream === "function");
+    container.appendChild(video);
+
+    if (video.canPlayType("application/vnd.apple.mpegurl")) {
+      video.src = stream.embedUrl;
+      safePlay(video);
+      if (options.expanded) {
+        controller.qualityOptions = [{ value: "auto", label: "Native HLS" }];
+      }
+      return controller;
+    }
+
+    if (window.Hls && window.Hls.isSupported()) {
+      const player = new window.Hls({
+        enableWorker: true,
+        lowLatencyMode: true,
+        capLevelToPlayerSize: false,
+        backBufferLength: 90,
+        maxBufferLength: 60
+      });
+
+      controller.destroy = () => player.destroy();
+      controller.supportsManualQuality = true;
+      controller.setQuality = (value) => {
+        controller.selectedQuality = String(value);
+        if (value === "auto") {
+          player.currentLevel = -1;
+          player.nextLevel = -1;
+          player.loadLevel = -1;
+          return;
+        }
+        const levelIndex = Number(value);
+        if (!Number.isInteger(levelIndex) || levelIndex < 0) return;
+        player.currentLevel = levelIndex;
+        player.nextLevel = levelIndex;
+        player.loadLevel = levelIndex;
+      };
+
+      player.on(window.Hls.Events.MANIFEST_PARSED, () => {
+        controller.qualityOptions = createHlsQualityOptions(player.levels || []);
+        if (options.preferHighQuality && player.levels?.length) {
+          controller.setQuality(String(player.levels.length - 1));
+        }
+        safePlay(video);
+        options.onReady?.(controller);
+      });
+
+      player.on(window.Hls.Events.ERROR, (_event, data) => {
+        if (data?.fatal) {
+          container.innerHTML = "";
+          const note = document.createElement("div");
+          note.className = "cctv-error";
+          note.textContent = "Live stream could not be loaded. Verify the HLS URL and camera gateway.";
+          container.appendChild(note);
+        }
+      });
+
+      player.loadSource(stream.embedUrl);
+      player.attachMedia(video);
+      options.onReady?.(controller);
+      return controller;
+    }
+
+    container.innerHTML = "";
+    const note = document.createElement("div");
+    note.className = "cctv-error";
+    note.textContent = "This browser cannot play HLS directly. Use a supported browser or vendor iframe feed.";
+    container.appendChild(note);
+    return controller;
+  }
+
+  function startRecording() {
+    if (!modalController?.video || !expandedStream) {
+      setModalStatus("Open a live HLS feed first to save footage.");
+      return;
+    }
+
+    if (recordingSession?.stop) {
+      recordingSession.stop(false);
+      return;
+    }
+
+    const stream = getVideoCaptureStream(modalController.video);
+    if (!stream) {
+      setModalStatus("This stream cannot be saved from the browser. HLS live video is supported; iframe vendor pages usually are not.");
+      updateModalControls();
+      return;
+    }
+
+    const durationSeconds = Number(modalRecordDurationEl?.value || 60);
+    const durationLabel = modalRecordDurationEl?.selectedOptions?.[0]?.textContent || `${durationSeconds} Seconds`;
+    const mimeType = ["video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm"]
+      .find((type) => window.MediaRecorder && window.MediaRecorder.isTypeSupported(type));
+
+    if (!window.MediaRecorder) {
+      setModalStatus("This browser does not support saving live footage.");
+      updateModalControls();
+      return;
+    }
+
+    const recorder = mimeType ? new window.MediaRecorder(stream, { mimeType }) : new window.MediaRecorder(stream);
+    const chunks = [];
+    const fileNameBase = `${expandedStream.name || "camera"}`.replace(/[^a-z0-9]+/gi, "-").replace(/^-+|-+$/g, "") || "camera";
+    const startedAt = formatRecordDateTime();
+
+    const finish = (cancelled) => {
+      const wasBackground = modalClosedDuringRecord;
+      recordingSession = null;
+      hideBgBanner();
+
+      if (wasBackground) {
+        // Full teardown now that recording is done
+        destroyController(modalController);
+        modalController = null;
+        expandedStream = null;
+        modalClosedDuringRecord = false;
+      }
+
+      updateModalControls();
+
+      if (cancelled) {
+        if (!wasBackground) setModalStatus("Footage saving stopped.");
+        return;
+      }
+
+      const blob = new Blob(chunks, { type: recorder.mimeType || "video/webm" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${fileNameBase}-${startedAt}.webm`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      if (!wasBackground) setModalStatus(`Saved footage for ${durationLabel}. Download started.`);
+    };
+
+    recorder.addEventListener("dataavailable", (event) => {
+      if (event.data && event.data.size > 0) chunks.push(event.data);
+    });
+
+    recorder.addEventListener("stop", () => {
+      finish(Boolean(recordingSession?.cancelled));
+    });
+
+    recorder.addEventListener("error", () => {
+      recordingSession = null;
+      modalClosedDuringRecord = false;
+      hideBgBanner();
+      if (!modalEl?.classList.contains("hidden")) {
+        setModalStatus("Footage saving failed. Try again with the expanded live HLS view.");
+      }
+      updateModalControls();
+    });
+
+    const timeoutId = window.setTimeout(() => {
+      if (recorder.state !== "inactive") recorder.stop();
+    }, durationSeconds * 1000);
+
+    recordingSession = {
+      recorder,
+      timeoutId,
+      cancelled: false,
+      stop(cancelled) {
+        this.cancelled = cancelled;
+        window.clearTimeout(this.timeoutId);
+        if (recorder.state !== "inactive") recorder.stop();
+      }
+    };
+
+    safePlay(modalController.video);
+    recorder.start(1000);
+    setModalStatus(`Saving "${expandedStream.name}" for ${durationLabel}. You can close this window — recording continues in the background.`);
+    updateModalControls();
+  }
+
+  function openExpandedView(stream) {
+    if (!modalEl || !modalStageEl) return;
+
+    if (recordingSession?.stop) recordingSession.stop(true);
+    destroyController(modalController);
+    expandedStream = stream;
+    modalTitleEl.textContent = stream.name;
+    modalSubtitleEl.textContent = stream.location || "Expanded live monitor";
+    modalEl.classList.remove("hidden");
+    modalEl.setAttribute("aria-hidden", "false");
+    document.body.classList.add("modal-open");
+
+    modalController = mountStream(modalStageEl, stream, {
+      expanded: true,
+      preferHighQuality: true,
+      onReady: () => {
+        updateModalControls();
+      }
+    });
+
+    if (stream.streamType === "hls") {
+      setModalStatus("Expanded live view is running in high-quality mode. Switch quality manually if you need lower bandwidth.");
+    } else if (stream.streamType === "iframe") {
+      setModalStatus("Vendor iframe feed expanded. Recording depends on the CCTV provider page and browser permissions.");
+    } else {
+      setModalStatus("Expanded live image view ready.");
+    }
+
+    updateModalControls();
+  }
+
+  function renderPreview(container, stream) {
+    const controller = mountStream(container, stream, { expanded: false });
+    streamControllers.push(controller);
+  }
+
+  function populateForm(stream) {
+    if (idEl) idEl.value = stream.id;
+    if (nameEl) nameEl.value = stream.name;
+    if (locationEl) locationEl.value = stream.location || "";
+    if (streamTypeEl) streamTypeEl.value = stream.streamType;
+    if (embedUrlEl) embedUrlEl.value = stream.embedUrl;
+    if (viewLinkEl) viewLinkEl.value = stream.viewLink || "";
+    if (isActiveEl) isActiveEl.checked = Boolean(stream.isActive);
+    setMessage(`Editing ${stream.name}.`, false);
+    form?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  async function deleteStream(stream) {
+    const confirmed = window.confirm(`Delete CCTV stream \"${stream.name}\"?`);
+    if (!confirmed) return;
+    try {
+      await request(API.cctvStreamById(stream.id), { method: "DELETE" });
+      setMessage(`${stream.name} deleted.`, false);
+      if (idEl?.value === stream.id) resetForm();
+      await loadStreams();
+    } catch (error) {
+      setMessage(error.message, true);
+    }
+  }
+
+  function buildCard(stream) {
+    const article = document.createElement("article");
+    article.className = "cctv-card";
+
+    const head = document.createElement("div");
+    head.className = "cctv-card-head";
+
+    const titleWrap = document.createElement("div");
+    const title = document.createElement("h3");
+    title.textContent = stream.name;
+    titleWrap.appendChild(title);
+    if (stream.location) {
+      const location = document.createElement("p");
+      location.textContent = stream.location;
+      titleWrap.appendChild(location);
+    }
+
+    const actions = document.createElement("div");
+    actions.className = "cctv-card-actions";
+    const liveBtn = document.createElement("button");
+    liveBtn.className = "btn btn-sm";
+    liveBtn.type = "button";
+    liveBtn.textContent = "Watch Live";
+    liveBtn.addEventListener("click", () => openExpandedView(stream));
+    if (stream.viewLink) {
+      const viewLinkBtn = document.createElement("a");
+      viewLinkBtn.className = "btn btn-outline btn-sm";
+      viewLinkBtn.href = stream.viewLink;
+      viewLinkBtn.target = "_blank";
+      viewLinkBtn.rel = "noopener noreferrer";
+      viewLinkBtn.textContent = "Open Camera";
+      actions.appendChild(liveBtn);
+      actions.appendChild(viewLinkBtn);
+    } else {
+      actions.appendChild(liveBtn);
+    }
+    const editBtn = document.createElement("button");
+    editBtn.className = "btn btn-outline btn-sm";
+    editBtn.type = "button";
+    editBtn.textContent = "Edit";
+    editBtn.addEventListener("click", () => populateForm(stream));
+    const deleteBtn = document.createElement("button");
+    deleteBtn.className = "btn btn-outline btn-sm";
+    deleteBtn.type = "button";
+    deleteBtn.textContent = "Delete";
+    deleteBtn.addEventListener("click", () => deleteStream(stream));
+    actions.append(editBtn, deleteBtn);
+
+    head.append(titleWrap, actions);
+
+    const meta = document.createElement("div");
+    meta.className = "cctv-meta";
+    meta.append(
+      createChip(stream.streamType.toUpperCase(), stream.streamType),
+      createChip(stream.isActive ? "Live" : "Inactive", "", !stream.isActive),
+      createChip(stream.streamType === "hls" ? "Save Supported" : "View Only", stream.streamType, stream.streamType !== "hls")
+    );
+
+    const preview = document.createElement("div");
+    preview.className = "cctv-preview";
+    renderPreview(preview, stream);
+
+    article.append(head, meta, preview);
+    return article;
+  }
+
+  function renderStreams() {
+    clearPlayers();
+    grid.innerHTML = "";
+
+    if (!streams.length) {
+      emptyStateEl?.classList.remove("hidden");
+      return;
+    }
+
+    emptyStateEl?.classList.add("hidden");
+    streams.forEach((stream) => {
+      grid.appendChild(buildCard(stream));
+    });
+  }
+
+  async function loadStreams() {
+    streams = await request(API.cctvStreams);
+    renderStreams();
+  }
+
+  modalBackdropEl?.addEventListener("click", closeModal);
+  modalCloseBtn?.addEventListener("click", closeModal);
+  modalFullscreenBtn?.addEventListener("click", openFullscreen);
+  modalRecordBtn?.addEventListener("click", startRecording);
+  bgRecordStopBtn?.addEventListener("click", () => {
+    if (recordingSession?.stop) recordingSession.stop(false);
+  });
+  modalQualitySelect?.addEventListener("change", () => {
+    modalController?.setQuality?.(modalQualitySelect.value);
+    if (modalQualitySelect.value === "auto") {
+      setModalStatus("Quality set to adaptive mode.");
+    } else {
+      setModalStatus(`Quality locked to ${modalQualitySelect.selectedOptions[0]?.textContent || "selected level"}.`);
+    }
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && modalEl && !modalEl.classList.contains("hidden")) {
+      closeModal();
+    }
+  });
+
+  resetBtn?.addEventListener("click", () => {
+    resetForm();
+    setMessage("", false);
+  });
+
+  refreshBtn?.addEventListener("click", async () => {
+    try {
+      await loadStreams();
+      setMessage("CCTV feeds refreshed.", false);
+    } catch (error) {
+      setMessage(error.message, true);
+    }
+  });
+
+  form?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const streamId = String(idEl?.value || "").trim();
+    const payload = {
+      name: nameEl?.value.trim() || "",
+      location: locationEl?.value.trim() || "",
+      streamType: streamTypeEl?.value || "iframe",
+      embedUrl: embedUrlEl?.value.trim() || "",
+      viewLink: viewLinkEl?.value.trim() || "",
+      isActive: Boolean(isActiveEl?.checked)
+    };
+
+    try {
+      await request(streamId ? API.cctvStreamById(streamId) : API.cctvStreams, {
+        method: streamId ? "PATCH" : "POST",
+        body: JSON.stringify(payload)
+      });
+      setMessage(streamId ? "CCTV stream updated." : "CCTV stream added.", false);
+      resetForm();
+      await loadStreams();
+    } catch (error) {
+      setMessage(error.message, true);
+    }
+  });
+
+  requireRole("admin").then(async (me) => {
+    if (!me) return;
+    if (!me.isSuperAdmin) {
+      alert("Only Super Admin can access CCTV monitor.");
+      navigateTo("admin.html");
+      return;
+    }
+
+    if (accessNoteEl) {
+      const label = me.firstName ? `${me.firstName} ${me.lastName || ""}`.trim() : me.email;
+      accessNoteEl.textContent = `Signed in as ${label}. Super admin live view and stream configuration.`;
+    }
+
+    try {
+      await loadStreams();
+    } catch (error) {
+      setMessage(error.message, true);
+    }
+  });
+}
+
 function initCustomersPage() {
   const customersTableBody = document.getElementById("customersPageTableBody");
   if (!customersTableBody) return;
@@ -3394,6 +4058,7 @@ function initPageGuardByPath() {
     "customers.html",
     "reports.html",
     "admin-profile.html",
+    "cctv.html",
     "create-admin.html",
     "create-admin-edit.html",
     "dine-in.html",
@@ -3481,6 +4146,7 @@ initMobileMode();
 initPageGuardByPath();
 initActiveNavLinks();
 initAuthPage();
+initAdminLandingPage();
 initLogoutButtons();
 initHomePage();
 initShopPage();
@@ -3493,6 +4159,7 @@ initCreateAdminPage();
 initCreateAdminEditPage();
 initReportsPage();
 initAdminDashboardPage();
+initCctvPage();
 initCustomersPage();
 initProfilePage();
 initAdminProfilePage();

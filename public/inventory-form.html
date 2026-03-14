@@ -53,7 +53,17 @@
         <label>
           Image URL (optional)
           <input type="url" id="inventoryImage" placeholder="https://..." />
+          <span class="small">If left blank, image will be auto-generated from product name and description.</span>
         </label>
+        <div class="form-actions">
+          <button class="btn btn-outline btn-sm" type="button" id="inventoryGenerateImageBtn">Generate Photo</button>
+        </div>
+        <label>
+          Upload Photo (optional)
+          <input type="file" id="inventoryImageFile" accept="image/*" />
+          <span class="small">Uploaded image is converted to image data automatically.</span>
+        </label>
+        <img id="inventoryImagePreview" class="inventory-image-preview hidden" alt="Inventory image preview" />
         <label>
           Description
           <textarea id="inventoryDescription" required placeholder="Short product description"></textarea>
