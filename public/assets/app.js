@@ -287,7 +287,9 @@ async function request(url, options = {}) {
 
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    throw new Error(data.error || "Request failed");
+    const error = new Error(data.error || "Request failed");
+    error.status = res.status;
+    throw error;
   }
   return data;
 }
@@ -295,6 +297,7 @@ async function request(url, options = {}) {
 function setAuthSession(token, user) {
   localStorage.setItem(AUTH_TOKEN_KEY, token);
   localStorage.setItem(AUTH_USER_KEY, JSON.stringify(user));
+  sessionStorage.setItem(NAV_GUARD_KEY, JSON.stringify({ count: 0, ts: Date.now() }));
 }
 
 function clearAuthSession() {
@@ -383,8 +386,8 @@ function navigateTo(path) {
   sessionStorage.setItem(NAV_GUARD_KEY, JSON.stringify(state));
 
   if (state.count > 8) {
-    clearAuthSession();
     console.warn("Navigation guard stopped repeated redirects.");
+    sessionStorage.setItem(NAV_GUARD_KEY, JSON.stringify({ count: 0, ts: now }));
     return;
   }
   window.location.replace(target);
@@ -403,8 +406,10 @@ async function requireRole(role) {
       return null;
     }
     return me;
-  } catch {
-    clearAuthSession();
+  } catch (error) {
+    if (Number(error?.status) === 401 || Number(error?.status) === 403) {
+      clearAuthSession();
+    }
     navigateTo("index.html");
     return null;
   }
@@ -488,23 +493,42 @@ function initAuthPage() {
   const adminSetupKeyEl = document.getElementById("adminSetupKey");
   const forgotRequestForm = document.getElementById("forgotRequestForm");
   const forgotConfirmForm = document.getElementById("forgotConfirmForm");
+  const showForgotPasswordBtn = document.getElementById("showForgotPasswordBtn");
+  const showForgotPasswordBtnAdmin = document.getElementById("showForgotPasswordBtnAdmin");
+  const backToLoginFromForgotBtn = document.getElementById("backToLoginFromForgotBtn");
+  const backToLoginFromResetBtn = document.getElementById("backToLoginFromResetBtn");
+  const resendResetOtpBtn = document.getElementById("resendResetOtpBtn");
 
   const localUser = getLocalAuthUser();
   const token = localStorage.getItem(AUTH_TOKEN_KEY);
   if (localUser && !token) {
     clearAuthSession();
   } else if (localUser?.role === "admin" && token) {
+    const tokenAtCheck = token;
     request(API.me)
       .then((me) => {
         if (me?.role === "admin") navigateTo("admin.html");
       })
-      .catch(() => clearAuthSession());
+      .catch((error) => {
+        const latestToken = localStorage.getItem(AUTH_TOKEN_KEY);
+        if (latestToken !== tokenAtCheck) return;
+        if (Number(error?.status) === 401 || Number(error?.status) === 403) {
+          clearAuthSession();
+        }
+      });
   } else if (localUser?.role === "customer" && token) {
+    const tokenAtCheck = token;
     request(API.me)
       .then((me) => {
         if (me?.role === "customer") navigateTo("home.html");
       })
-      .catch(() => clearAuthSession());
+      .catch((error) => {
+        const latestToken = localStorage.getItem(AUTH_TOKEN_KEY);
+        if (latestToken !== tokenAtCheck) return;
+        if (Number(error?.status) === 401 || Number(error?.status) === 403) {
+          clearAuthSession();
+        }
+      });
   }
 
   function showMessage(text) {
@@ -519,8 +543,8 @@ function initAuthPage() {
       const visible = isLoginMode ? isLoginTab : isSignupTab;
       tab.classList.toggle("hidden", !visible);
     });
-    forgotRequestForm.classList.toggle("hidden", !isLoginMode);
-    forgotConfirmForm.classList.toggle("hidden", !isLoginMode);
+    if (forgotRequestForm) forgotRequestForm.classList.add("hidden");
+    if (forgotConfirmForm) forgotConfirmForm.classList.add("hidden");
   }
 
   function activateAuthTab(tabName) {
@@ -542,11 +566,62 @@ function initAuthPage() {
     }
   }
 
+  function showForgotPasswordPanel() {
+    customerLoginForm.classList.add("hidden");
+    adminLoginForm.classList.add("hidden");
+    customerSignupForm.classList.add("hidden");
+    adminRegisterForm.classList.add("hidden");
+    forgotRequestForm.classList.remove("hidden");
+    forgotConfirmForm.classList.remove("hidden");
+  }
+
   authTabs.forEach((tab) => {
     tab.addEventListener("click", () => {
       activateAuthTab(tab.dataset.tab);
     });
   });
+
+  [showForgotPasswordBtn, showForgotPasswordBtnAdmin].forEach((button) => {
+    if (!button) return;
+    button.addEventListener("click", () => {
+      setAuthMode("login");
+      showForgotPasswordPanel();
+      showMessage("Enter your email to receive OTP and reset password.");
+    });
+  });
+
+  [backToLoginFromForgotBtn, backToLoginFromResetBtn].forEach((button) => {
+    if (!button) return;
+    button.addEventListener("click", () => {
+      setAuthMode("login");
+      activateAuthTab("customer-login");
+    });
+  });
+
+  if (resendResetOtpBtn) {
+    resendResetOtpBtn.addEventListener("click", async () => {
+      try {
+        const resetEmail = document.getElementById("resetEmail")?.value.trim();
+        const forgotEmail = document.getElementById("forgotEmail")?.value.trim();
+        const email = resetEmail || forgotEmail;
+        if (!email) {
+          showMessage("Please enter your email first.");
+          return;
+        }
+        const result = await request(API.forgotPasswordRequest, {
+          method: "POST",
+          body: JSON.stringify({ email })
+        });
+        const forgotEmailEl = document.getElementById("forgotEmail");
+        const resetEmailEl = document.getElementById("resetEmail");
+        if (forgotEmailEl) forgotEmailEl.value = email;
+        if (resetEmailEl) resetEmailEl.value = email;
+        showMessage(result.message || "OTP resent to your email.");
+      } catch (error) {
+        showMessage(error.message);
+      }
+    });
+  }
 
   [topLoginBtn, heroLoginBtn].forEach((button) => {
     if (!button) return;
@@ -612,8 +687,16 @@ function initAuthPage() {
           address: document.getElementById("signupAddress").value.trim()
         })
       });
-      setAuthSession(result.token, result.user);
-      navigateTo("home.html");
+      const signupEmail = document.getElementById("signupEmail").value.trim();
+      const loginEmailEl = document.getElementById("loginEmail");
+      if (loginEmailEl) loginEmailEl.value = signupEmail;
+      customerSignupForm.reset();
+      if (signupCountryEl && signupStateEl) {
+        populateStateOptions(signupCountryEl, signupStateEl);
+      }
+      setAuthMode("login");
+      activateAuthTab("customer-login");
+      showMessage(result.message || "Registration successful. Please check your email, then login.");
     } catch (error) {
       showMessage(error.message);
     }
@@ -673,6 +756,9 @@ function initAuthPage() {
         body: JSON.stringify({ email: document.getElementById("forgotEmail").value.trim() })
       });
       showMessage(result.message);
+      const forgotEmail = document.getElementById("forgotEmail").value.trim();
+      const resetEmailEl = document.getElementById("resetEmail");
+      if (resetEmailEl) resetEmailEl.value = forgotEmail;
     } catch (error) {
       showMessage(error.message);
     }
@@ -681,15 +767,25 @@ function initAuthPage() {
   forgotConfirmForm.addEventListener("submit", async (event) => {
     event.preventDefault();
     try {
+      const resetEmail = document.getElementById("resetEmail").value.trim();
       const result = await request(API.forgotPasswordConfirm, {
         method: "POST",
         body: JSON.stringify({
-          email: document.getElementById("resetEmail").value.trim(),
+          email: resetEmail,
           otp: document.getElementById("resetOtp").value.trim(),
           newPassword: document.getElementById("resetNewPassword").value
         })
       });
       showMessage(result.message);
+      forgotConfirmForm.reset();
+      forgotRequestForm.reset();
+      setAuthMode("login");
+      const loginTab = result.role === "admin" ? "admin-login" : "customer-login";
+      activateAuthTab(loginTab);
+      const loginEmailEl = document.getElementById("loginEmail");
+      const adminLoginEmailEl = document.getElementById("adminLoginEmail");
+      if (loginEmailEl && loginTab === "customer-login") loginEmailEl.value = result.email || resetEmail;
+      if (adminLoginEmailEl && loginTab === "admin-login") adminLoginEmailEl.value = result.email || resetEmail;
     } catch (error) {
       showMessage(error.message);
     }
@@ -987,22 +1083,36 @@ function initCartPage() {
       latestFallbackOrderId = created.orderId;
       latestFallbackPaymentMode = String(created.payment?.paymentMode || selectedPaymentMethod()).toUpperCase();
       upiArea.classList.remove("hidden");
-      if (created.payment.provider === "upi_intent") {
+
+      if (created.payment.provider === "cash_on_delivery") {
+        upiLink.classList.add("hidden");
+        upiUri.classList.add("hidden");
+        markPaidBtn.classList.add("hidden");
+        if (paymentAssistText) paymentAssistText.textContent = "Order placed! Pay cash when your order arrives.";
+        orderSuccess.classList.remove("hidden");
+        orderSuccess.textContent = `Order ${created.orderId} placed. Our team will collect cash on delivery.`;
+      } else if (created.payment.provider === "upi_intent") {
+        const appLabels = { GOOGLE_PAY: "Open in Google Pay", PHONEPE: "Open in PhonePe", UPI: "Open UPI App" };
         upiLink.classList.remove("hidden");
         upiUri.classList.remove("hidden");
         upiLink.href = created.payment.upiUri;
+        upiLink.textContent = appLabels[latestFallbackPaymentMode] || "Open UPI App";
         upiUri.textContent = created.payment.upiUri;
-        if (paymentAssistText) paymentAssistText.textContent = "Use any UPI app to complete payment:";
+        markPaidBtn.classList.remove("hidden");
+        if (paymentAssistText) paymentAssistText.textContent = "Tap the button to open the payment app, then tap 'I Have Paid':";
+        orderSuccess.classList.remove("hidden");
+        orderSuccess.textContent = `Order ${created.orderId} is pending. After payment click 'I Have Paid'.`;
       } else {
         upiLink.classList.add("hidden");
         upiUri.classList.add("hidden");
+        markPaidBtn.classList.remove("hidden");
         if (paymentAssistText) {
           paymentAssistText.textContent =
             "Complete payment at counter/terminal and click 'I Have Paid' to confirm.";
         }
+        orderSuccess.classList.remove("hidden");
+        orderSuccess.textContent = `Order ${created.orderId} is pending. After payment click 'I Have Paid'.`;
       }
-      orderSuccess.classList.remove("hidden");
-      orderSuccess.textContent = `Order ${created.orderId} is pending. After payment click 'I Have Paid'.`;
     } catch (error) {
       alert(error.message);
     }
@@ -1522,6 +1632,8 @@ function initAdminOrderDetailPage() {
   const paymentStatusEl = document.getElementById("adminOrderPaymentStatus");
   const statusMessageEl = document.getElementById("adminOrderStatusMessage");
   const submitBtn = form.querySelector('button[type="submit"]');
+  const cashPaidAreaEl = document.getElementById("cashPaidArea");
+  const markCashPaidBtn = document.getElementById("markCashPaidBtn");
 
   closeBtn.href = back;
 
@@ -1606,6 +1718,14 @@ function initAdminOrderDetailPage() {
         statusMessageEl.textContent = "";
       }
     }
+
+    // Show "Mark as Paid — Cash" button for pending cash orders
+    if (cashPaidAreaEl) {
+      const isCashPending =
+        String(order.payment_mode || "").toUpperCase() === "CASH" &&
+        String(order.payment_status || "").toUpperCase() === "INITIATED";
+      cashPaidAreaEl.classList.toggle("hidden", !isCashPending);
+    }
   }
 
   async function loadOrder() {
@@ -1615,6 +1735,22 @@ function initAdminOrderDetailPage() {
 
   channelEl.addEventListener("change", syncFormUI);
   orderTypeEl.addEventListener("change", syncFormUI);
+
+  if (markCashPaidBtn) {
+    markCashPaidBtn.addEventListener("click", async () => {
+      if (!confirm(`Confirm cash received for order ${orderId}?`)) return;
+      try {
+        await request(`${API.orders}/${encodeURIComponent(orderId)}/payment-status`, {
+          method: "PATCH",
+          body: JSON.stringify({ paymentStatus: "PAID" })
+        });
+        statusMessageEl.textContent = `Order ${orderId} marked as paid (Cash).`;
+        await loadOrder();
+      } catch (error) {
+        alert(error.message);
+      }
+    });
+  }
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();

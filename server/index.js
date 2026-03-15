@@ -26,8 +26,10 @@ const SESSION_DAYS = 7;
 const SMTP_HOST = String(process.env.SMTP_HOST || "").trim();
 const SMTP_PORT = Number(process.env.SMTP_PORT || 587);
 const SMTP_USER = String(process.env.SMTP_USER || "").trim();
-const SMTP_PASS = String(process.env.SMTP_PASS || "").trim();
-const SMTP_FROM = String(process.env.SMTP_FROM || SMTP_USER || "").trim();
+const SMTP_PASS = String(process.env.SMTP_PASS || "")
+  .trim()
+  .replace(/\s+/g, "");
+const SMTP_FROM = normalizeFromAddress(String(process.env.SMTP_FROM || SMTP_USER || "").trim(), SMTP_USER);
 const smtpConfigured = Boolean(SMTP_HOST && SMTP_PORT && SMTP_USER && SMTP_PASS && SMTP_FROM);
 const SUPER_ADMIN_SETUP_KEY = String(process.env.SUPER_ADMIN_SETUP_KEY || "").trim();
 const isProduction = String(process.env.NODE_ENV || "").trim().toLowerCase() === "production";
@@ -49,9 +51,34 @@ const mailer = smtpConfigured && nodemailer
     })
   : null;
 
+console.log(
+  `[startup] SMTP ${mailer ? "enabled" : "disabled"} | host=${SMTP_HOST || "-"} | port=${SMTP_PORT || "-"} | user=${SMTP_USER || "-"}`
+);
+
+if (mailer) {
+  mailer.verify().then(
+    () => {
+      console.log("[startup] SMTP connection verified successfully.");
+    },
+    (error) => {
+      console.error("[startup] SMTP verification failed:", error.message);
+    }
+  );
+}
+
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "..", "public")));
+
+function normalizeFromAddress(value, fallbackEmail) {
+  const raw = String(value || "").trim();
+  const fallback = String(fallbackEmail || "").trim();
+  if (!raw) return fallback;
+  if (/^[^<>]+<[^<>@\s]+@[^<>@\s]+>$/.test(raw)) return raw;
+  if (/^[^<>]+<[^<>@\s]+@[^<>@\s]+$/.test(raw)) return `${raw}>`;
+  if (/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(raw)) return raw;
+  return fallback || raw;
+}
 
 function hashPassword(password) {
   const salt = crypto.randomBytes(16).toString("hex");
@@ -59,11 +86,30 @@ function hashPassword(password) {
   return `${salt}:${hash}`;
 }
 
+function normalizePasswordInput(password) {
+  return String(password || "").trim();
+}
+
 function verifyPassword(password, stored) {
   const [salt, originalHash] = String(stored || "").split(":");
   if (!salt || !originalHash) return false;
-  const candidate = crypto.pbkdf2Sync(password, salt, 120000, 64, "sha512").toString("hex");
-  return crypto.timingSafeEqual(Buffer.from(candidate), Buffer.from(originalHash));
+
+  const matches = (candidatePassword) => {
+    try {
+      const candidate = crypto.pbkdf2Sync(candidatePassword, salt, 120000, 64, "sha512").toString("hex");
+      if (candidate.length !== originalHash.length) return false;
+      return crypto.timingSafeEqual(Buffer.from(candidate), Buffer.from(originalHash));
+    } catch {
+      return false;
+    }
+  };
+
+  if (matches(String(password || ""))) return true;
+  const normalized = normalizePasswordInput(password);
+  if (normalized !== String(password || "")) {
+    return matches(normalized);
+  }
+  return false;
 }
 
 function makeSession(user) {
@@ -108,6 +154,26 @@ async function sendOtpEmail({ toEmail, subject, otp, purposeLabel }) {
         <p>${purposeLabel}</p>
         <p><strong>Your OTP is: ${otp}</strong></p>
         <p>This OTP is valid for 10 minutes.</p>
+      </div>
+    `
+  });
+  return true;
+}
+
+async function sendRegistrationSuccessEmail({ toEmail, firstName, lastName, roleLabel }) {
+  if (!mailer) return false;
+  const fullName = `${String(firstName || "").trim()} ${String(lastName || "").trim()}`.trim() || "User";
+  await mailer.sendMail({
+    from: SMTP_FROM,
+    to: toEmail,
+    subject: `${BUSINESS_NAME} Registration Successful`,
+    text: `Hello ${fullName},\n\nYour ${roleLabel} account has been successfully registered at ${BUSINESS_NAME}.\n\nYou can now login and continue.`,
+    html: `
+      <div style="font-family: Arial, sans-serif; line-height: 1.5;">
+        <h2>${BUSINESS_NAME}</h2>
+        <p>Hello ${fullName},</p>
+        <p>Your <strong>${roleLabel}</strong> account has been successfully registered.</p>
+        <p>You can now login and continue.</p>
       </div>
     `
   });
@@ -395,12 +461,39 @@ app.post("/api/auth/signup-customer", (req, res) => {
     ).run(userId, email, hashPassword(password), customerId);
   })();
 
-  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId);
-  const token = makeSession(user);
-  res.status(201).json({
-    token,
-    user: { id: user.id, email: user.email, role: user.role, firstName, lastName }
-  });
+  sendRegistrationSuccessEmail({
+    toEmail: email,
+    firstName,
+    lastName,
+    roleLabel: "customer"
+  })
+    .then((sent) => {
+      if (!sent) {
+        return res.status(201).json({
+          ok: true,
+          message: "Account created. Email delivery is unavailable right now. Please login.",
+          email,
+          welcomeEmailSent: false
+        });
+      }
+      return res.status(201).json({
+        ok: true,
+        message: "Account created successfully. Please check your email and login.",
+        email,
+        welcomeEmailSent: true
+      });
+    })
+    .catch((error) => {
+      console.error("Failed to send customer registration email:", error.message);
+      return res.status(201).json({
+        ok: true,
+        message: isProduction
+          ? "Account created successfully. Please login."
+          : `Account created successfully. Email delivery failed. Reason: ${error.message}. Please login.`,
+        email,
+        welcomeEmailSent: false
+      });
+    });
 });
 
 app.post("/api/auth/admin/register", async (req, res) => {
@@ -439,10 +532,23 @@ app.post("/api/auth/admin/register", async (req, res) => {
 
   const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId);
   const token = makeSession(user);
+  let welcomeEmailSent = false;
+  try {
+    welcomeEmailSent = await sendRegistrationSuccessEmail({
+      toEmail: email,
+      firstName,
+      lastName,
+      roleLabel: "admin"
+    });
+  } catch {
+    welcomeEmailSent = false;
+  }
+
   return res.status(201).json({
     message: "Super admin setup completed.",
     token,
-    user: { id: user.id, email: user.email, role: user.role, firstName, lastName, isSuperAdmin: true }
+    user: { id: user.id, email: user.email, role: user.role, firstName, lastName, isSuperAdmin: true },
+    welcomeEmailSent
   });
 });
 
@@ -721,6 +827,111 @@ app.post("/api/auth/admin/verify-otp", (_req, res) => {
   return res.status(410).json({ error: "OTP verification is disabled. Use super admin setup key flow." });
 });
 
+app.post("/api/auth/verify-email-otp", async (req, res) => {
+  const email = String(req.body.email || "").trim().toLowerCase();
+  const otp = String(req.body.otp || "").trim();
+  if (!email || !otp) {
+    return res.status(400).json({ error: "email and otp are required." });
+  }
+
+  const user = db.prepare("SELECT * FROM users WHERE email = ?").get(email);
+  if (!user) return res.status(404).json({ error: "User not found." });
+
+  const row = db
+    .prepare(
+      `
+      SELECT * FROM email_otps
+      WHERE user_id = ? AND purpose = 'email_verify' AND used = 0
+      ORDER BY datetime(created_at) DESC
+      LIMIT 1
+    `
+    )
+    .get(user.id);
+
+  if (!row) return res.status(400).json({ error: "OTP not found." });
+  if (new Date(row.expires_at).getTime() < Date.now()) return res.status(400).json({ error: "OTP expired." });
+  if (row.otp !== otp) return res.status(400).json({ error: "Invalid OTP." });
+
+  db.transaction(() => {
+    db.prepare("UPDATE email_otps SET used = 1 WHERE id = ?").run(row.id);
+    db.prepare("UPDATE users SET email_verified = 1, updated_at = datetime('now') WHERE id = ?").run(user.id);
+  })();
+
+  const roleLabel = user.role === "admin" ? "admin" : "customer";
+  let welcomeEmailSent = false;
+  try {
+    let firstName = "";
+    let lastName = "";
+    if (user.role === "admin") {
+      firstName = user.first_name || "";
+      lastName = user.last_name || "";
+    } else {
+      const customer = user.customer_id
+        ? db.prepare("SELECT name FROM customers WHERE id = ?").get(user.customer_id)
+        : null;
+      const parts = String(customer?.name || "").trim().split(/\s+/).filter(Boolean);
+      firstName = parts[0] || "";
+      lastName = parts.slice(1).join(" ");
+    }
+
+    welcomeEmailSent = await sendRegistrationSuccessEmail({
+      toEmail: email,
+      firstName,
+      lastName,
+      roleLabel
+    });
+  } catch {
+    welcomeEmailSent = false;
+  }
+
+  return res.json({ ok: true, message: "Email verified successfully. Please login.", welcomeEmailSent });
+});
+
+app.post("/api/auth/resend-email-otp", async (req, res) => {
+  const email = String(req.body.email || "").trim().toLowerCase();
+  if (!email) return res.status(400).json({ error: "email is required." });
+
+  const user = db.prepare("SELECT * FROM users WHERE email = ?").get(email);
+  if (!user) {
+    return res.json({ ok: true, message: "If email exists, OTP has been sent." });
+  }
+  if (user.email_verified) {
+    return res.json({ ok: true, message: "Email is already verified. Please login." });
+  }
+
+  const otp = makeOtp(user.id, "email_verify");
+
+  function resendResponse(baseMessage, reason = "") {
+    if (isProduction) {
+      return { ok: true, message: baseMessage };
+    }
+    const detail = String(reason || "").trim();
+    return {
+      ok: true,
+      message: `${baseMessage}${detail ? ` Reason: ${detail}.` : ""} OTP logged on server for development use.`,
+      devOtp: otp
+    };
+  }
+
+  try {
+    const sent = await sendOtpEmail({
+      toEmail: email,
+      subject: `${BUSINESS_NAME} Email Verification OTP`,
+      otp,
+      purposeLabel: "Use this OTP to verify your email and activate your account."
+    });
+    if (!sent) {
+      console.log(`Email verification OTP resend for ${email}: ${otp}`);
+      return res.json(resendResponse("SMTP not configured."));
+    }
+    return res.json({ ok: true, message: "OTP resent to your email." });
+  } catch (error) {
+    console.error("Failed to resend email verification OTP:", error.message);
+    console.log(`Email verification OTP resend for ${email}: ${otp}`);
+    return res.json(resendResponse("Email delivery failed.", error.message));
+  }
+});
+
 app.post("/api/auth/login", (req, res) => {
   const email = String(req.body.email || "").trim().toLowerCase();
   const password = String(req.body.password || "");
@@ -729,9 +940,6 @@ app.post("/api/auth/login", (req, res) => {
   const user = db.prepare("SELECT * FROM users WHERE email = ?").get(email);
   if (!user || !verifyPassword(password, user.password_hash)) {
     return res.status(401).json({ error: "Invalid credentials." });
-  }
-  if (user.role === "admin" && !user.email_verified) {
-    return res.status(403).json({ error: "Admin email not verified. Complete OTP verification." });
   }
 
   const token = makeSession(user);
@@ -766,13 +974,14 @@ app.post("/api/auth/forgot-password/request", async (req, res) => {
   if (!user) return res.json({ ok: true, message: "If email exists, OTP is sent." });
   const otp = makeOtp(user.id, "reset_password");
 
-  function fallbackResetMessage(baseMessage) {
+  function fallbackResetMessage(baseMessage, reason = "") {
     if (isProduction) {
       return { ok: true, message: "If email exists, OTP is sent." };
     }
+    const detail = String(reason || "").trim();
     return {
       ok: true,
-      message: `${baseMessage} OTP logged on server for development use.`,
+      message: `${baseMessage}${detail ? ` Reason: ${detail}.` : ""} OTP logged on server for development use.`,
       devOtp: otp
     };
   }
@@ -792,16 +1001,19 @@ app.post("/api/auth/forgot-password/request", async (req, res) => {
   } catch (error) {
     console.error("Failed to send password reset OTP email:", error.message);
     console.log(`Password reset OTP for ${email}: ${otp}`);
-    return res.json(fallbackResetMessage("Email delivery failed."));
+    return res.json(fallbackResetMessage("Email delivery failed.", error.message));
   }
 });
 
 app.post("/api/auth/forgot-password/confirm", (req, res) => {
   const email = String(req.body.email || "").trim().toLowerCase();
   const otp = String(req.body.otp || "").trim();
-  const newPassword = String(req.body.newPassword || "");
+  const newPassword = normalizePasswordInput(req.body.newPassword);
   if (!email || !otp || !newPassword) {
     return res.status(400).json({ error: "email, otp and newPassword are required." });
+  }
+  if (newPassword.length < 8) {
+    return res.status(400).json({ error: "New password must be at least 8 characters." });
   }
   const user = db.prepare("SELECT * FROM users WHERE email = ?").get(email);
   if (!user) return res.status(404).json({ error: "User not found." });
@@ -826,7 +1038,7 @@ app.post("/api/auth/forgot-password/confirm", (req, res) => {
       user.id
     );
   })();
-  return res.json({ ok: true, message: "Password reset successful." });
+  return res.json({ ok: true, message: "Password reset successful.", role: user.role, email });
 });
 
 app.post("/api/auth/logout", authMiddleware, (req, res) => {
@@ -1951,7 +2163,7 @@ app.post("/api/checkout/create-intent", authMiddleware, customerOnly, async (req
   if (!["DELIVERY", "PICKUP"].includes(orderType)) {
     return res.status(400).json({ error: "Invalid order type." });
   }
-  if (!["UPI", "CARD", "APPLE_PAY", "GOOGLE_PAY"].includes(paymentMode)) {
+  if (!["UPI", "CARD", "APPLE_PAY", "GOOGLE_PAY", "PHONEPE", "CASH"].includes(paymentMode)) {
     return res.status(400).json({ error: "Invalid payment mode." });
   }
 
@@ -2116,34 +2328,52 @@ app.post("/api/checkout/create-intent", authMiddleware, customerOnly, async (req
       }
     }
 
-    if (created.paymentMode !== "UPI") {
+    // Cash on Delivery — no app, rep collects on arrival
+    if (created.paymentMode === "CASH") {
       const emailSent = await trySendOrderInvoiceEmail(emailPayload);
       return res.status(201).json({
         orderId,
         total: created.total,
         emailSent,
         payment: {
-          provider: "manual_confirmation",
-          paymentMode: created.paymentMode
+          provider: "cash_on_delivery",
+          paymentMode: "CASH"
         }
       });
     }
 
-    const upiUri = `upi://pay?pa=${encodeURIComponent(BUSINESS_UPI_ID)}&pn=${encodeURIComponent(
-      BUSINESS_NAME
-    )}&tn=${encodeURIComponent(orderId)}&am=${created.total.toFixed(2)}&cu=INR`;
+    // UPI-based: Google Pay (tez://), PhonePe (phonepe://), generic UPI (upi://)
+    if (["UPI", "GOOGLE_PAY", "PHONEPE"].includes(created.paymentMode)) {
+      const baseParams = `pa=${encodeURIComponent(BUSINESS_UPI_ID)}&pn=${encodeURIComponent(
+        BUSINESS_NAME
+      )}&tn=${encodeURIComponent(orderId)}&am=${created.total.toFixed(2)}&cu=INR`;
+      const upiUri =
+        created.paymentMode === "GOOGLE_PAY" ? `tez://upi/pay?${baseParams}` :
+        created.paymentMode === "PHONEPE"    ? `phonepe://pay?${baseParams}` :
+                                               `upi://pay?${baseParams}`;
+      const emailSent = await trySendOrderInvoiceEmail(emailPayload);
+      return res.status(201).json({
+        orderId,
+        total: created.total,
+        emailSent,
+        payment: {
+          provider: "upi_intent",
+          paymentMode: created.paymentMode,
+          upiId: BUSINESS_UPI_ID,
+          upiUri
+        }
+      });
+    }
 
+    // Card, Apple Pay — manual confirmation
     const emailSent = await trySendOrderInvoiceEmail(emailPayload);
-
     return res.status(201).json({
       orderId,
       total: created.total,
       emailSent,
       payment: {
-        provider: "upi_intent",
-        paymentMode: created.paymentMode,
-        upiId: BUSINESS_UPI_ID,
-        upiUri
+        provider: "manual_confirmation",
+        paymentMode: created.paymentMode
       }
     });
   } catch (error) {

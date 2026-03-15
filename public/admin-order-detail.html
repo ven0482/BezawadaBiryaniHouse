@@ -55,6 +55,10 @@
     <section class="card">
       <h2>Update Order</h2>
       <p class="small" id="adminOrderStatusMessage"></p>
+      <div id="cashPaidArea" class="hidden" style="margin-bottom:1rem;padding:1rem;background:var(--surface-alt,#f5f5f5);border-radius:8px">
+        <p class="small" style="margin-bottom:.5rem">This is a <strong>Cash on Delivery</strong> order. Confirm cash was received from the customer.</p>
+        <button class="btn btn-sm" type="button" id="markCashPaidBtn">Mark as Paid — Cash</button>
+      </div>
       <form id="adminOrderEditForm" class="admin-form">
         <label>
           Source
